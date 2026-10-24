@@ -1,0 +1,6 @@
+# Preserve delivery checksums across Windows/Linux clones.
+* -text
+*.bit binary
+*.elf binary
+*.bin binary
+*.pdf binary

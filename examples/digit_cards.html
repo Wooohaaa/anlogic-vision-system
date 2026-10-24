@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>单数字卡测试</title>
+<style>
+body{font:16px system-ui;background:#333;color:white;margin:24px}header{max-width:850px;line-height:1.7}
+main{display:flex;gap:20px;flex-wrap:wrap}.card{width:80mm;height:110mm;background:white;color:black;display:grid;place-items:center;break-inside:avoid}
+svg{width:44mm;height:62mm;image-rendering:pixelated}button{padding:10px 16px;margin:12px 0}
+@media print{body{background:white;margin:0}header,button{display:none}main{gap:8mm}.card{outline:1px dashed #bbb;page-break-inside:avoid}}
+</style>
+<header><h1>单个数字卡：0～9</h1><p>这是便于验证的5×7印刷字形，不代表任意字体。打印并沿卡片边界裁开，每次只展示一张；或在屏幕上放大一张。卡片保持正立、完整入镜、背景与卡片有区分，建议画面中卡片宽约96～400像素。SW4开启后等待稳定结果；移动位置、撤卡并观察框与结果是否清除。不要把整页10张同时入镜当作单卡识别测试。</p><button onclick="print()">打印数字卡</button></header>
+<main id="cards"></main>
+<script>
+const glyphs=['01110/10001/10001/10001/10001/10001/01110','00100/01100/00100/00100/00100/00100/01110','01110/10001/00001/00010/00100/01000/11111','11110/00001/00001/01110/00001/00001/11110','00010/00110/01010/10010/11111/00010/00010','11111/10000/10000/11110/00001/00001/11110','01110/10000/10000/11110/10001/10001/01110','11111/00001/00010/00100/01000/01000/01000','01110/10001/10001/01110/10001/10001/01110','01110/10001/10001/01111/00001/00001/01110'];
+glyphs.forEach((g,n)=>{let s='';g.split('/').forEach((r,y)=>[...r].forEach((b,x)=>{if(b==='1')s+=`<rect x="${x*10}" y="${y*10}" width="10" height="10"/>`}));const card=document.createElement('div');card.className='card';card.innerHTML=`<svg viewBox="0 0 50 70" role="img" aria-label="数字${n}">${s}</svg>`;document.getElementById('cards').appendChild(card)});
+</script></html>

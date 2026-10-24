@@ -1,0 +1,19 @@
+{
+  "source_sha256":"28c901c9aa13e3695dc0eb86bbb7b5c3753b9c7627dd8bc3fef705a797b715ca",
+  "note":"Manually inspected stable complete poses. Camera pans, hand entry/exit and clipped/ambiguous poses are unscored. No empty first-frame background model is used.",
+  "segments":[
+    {"name":"empty_warm_furniture","id":0,"start":0,"end":45},
+    {"name":"fist_backlight_1","id":1,"start":120,"end":133},
+    {"name":"point_backlight_1","id":2,"start":150,"end":163},
+    {"name":"open_backlight_1","id":3,"start":178,"end":188},
+    {"name":"point_backlight_2","id":2,"start":210,"end":223},
+    {"name":"fist_backlight_2","id":1,"start":240,"end":275},
+    {"name":"fist_dim_1","id":1,"start":480,"end":493},
+    {"name":"point_dim_1","id":2,"start":510,"end":523},
+    {"name":"open_dim_1","id":3,"start":540,"end":553},
+    {"name":"fist_dim_2","id":1,"start":570,"end":583},
+    {"name":"open_dim_2","id":3,"start":600,"end":612},
+    {"name":"point_dim_2","id":2,"start":630,"end":642},
+    {"name":"empty_after_withdrawal","id":0,"start":710,"end":800}
+  ]
+}

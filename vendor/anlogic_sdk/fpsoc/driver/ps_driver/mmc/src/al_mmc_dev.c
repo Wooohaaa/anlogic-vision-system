@@ -1,0 +1,3549 @@
+/*
+ * Copyright (c) 2023, Anlogic Inc. and Contributors. All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+/***************************** Include Files *********************************/
+#include <string.h>
+#include "al_mmc_dev.h"
+
+/************************** Constant Definitions *****************************/
+/* Default Init config */
+static AL_MMC_InitStruct AlMmc_DefInitConfig = {
+    .CardType           = AL_MMC_CARD_TYPE_AUTO_DETECT,
+    .DmaMode            = AL_MMC_DMA_MODE_SDMA,
+    .BusWidth           = AL_MMC_BUS_WIDTH_8BIT,
+    .Switch1v8          = AL_FUNC_ENABLE,
+    .AutoGenAdmaTblEn   = AL_FUNC_DISABLE,
+    .DmaBdary           = AL_MMC_BDARY_32K,
+    .FixedPhase         = 6,    /* covered by macro AL_MMC_AUTOTUNING_ENALBE */
+};
+
+/* For capacity print, only for debug */
+static AL_U8 AlMmc_CapacityDot[16] = {0, 1, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9, 9};
+
+static const AL_CHAR * const SpeedInfo[] = {
+    [AL_MMC_SPD_DS_SDR12] = "DS",
+    [AL_MMC_SPD_HS_SDR25] = "HS",
+    [AL_MMC_SPD_SDR50] = "SDR50",
+    [AL_MMC_SPD_SDR104_HS200] = "HS200",
+    [AL_MMC_SPD_DDR50_HS_DDR] = "DDR50",
+    [AL_MMC_SPD_UHS_II_HS400] = "HS400",
+};
+
+static const AL_CHAR * const DmaInfo[] = {
+    [AL_MMC_DMA_MODE_SDMA] = "SDMA",
+    [AL_MMC_DMA_MODE_NONE] = "NONE",
+    [AL_MMC_DMA_MODE_ADMA2] = "ADMA2",
+    [AL_MMC_DMA_MODE_ADMA3] = "ADMA3",
+};
+
+#ifdef AL_MMC_AUTOTUNING_ENABLE
+static AL_U8 CACHE_LINE_ALIGN TuningBlock[AL_MMC_BLK_LEN_512B] =
+        {0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, \
+        0xcc, 0xcc, 0xcc, 0x33, 0xcc, 0xcc, 0xcc, 0x33, 0x33, 0xcc, \
+        0xcc, 0xcc, 0xff, 0xff, 0xff, 0xee, 0xff, 0xff, 0xff, 0xee, \
+        0xee, 0xff, 0xff, 0xff, 0xdd, 0xff, 0xff, 0xff, 0xdd, 0xdd, \
+        0xff, 0xff, 0xff, 0xbb, 0xff, 0xff, 0xff, 0xbb, 0xbb, 0xff, \
+        0xff, 0xff, 0x77, 0xff, 0xff, 0xff, 0x77, 0x77, 0xff, 0x77, \
+        0xbb, 0xdd, 0xee, 0xff, 0xff, 0xff, 0xff, 0x00, 0xff, 0xff, \
+        0xff, 0x00, 0x00, 0xff, 0xff, 0xcc, 0xcc, 0xcc, 0x33, 0xcc, \
+        0xcc, 0xcc, 0x33, 0x33, 0xcc, 0xcc, 0xcc, 0xff, 0xff, 0xff, \
+        0xee, 0xff, 0xff, 0xff, 0xee, 0xee, 0xff, 0xff, 0xff, 0xdd, \
+        0xff, 0xff, 0xff, 0xdd, 0xdd, 0xff, 0xff, 0xff, 0xbb, 0xff, \
+        0xff, 0xff, 0xbb, 0xbb, 0xff, 0xff, 0xff, 0x77, 0xff, 0xff, \
+        0xff, 0x77, 0x77, 0xff, 0x77, 0xbb, 0xdd, 0xee,
+        0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, \
+        0xcc, 0xcc, 0xcc, 0x33, 0xcc, 0xcc, 0xcc, 0x33, 0x33, 0xcc, \
+        0xcc, 0xcc, 0xff, 0xff, 0xff, 0xee, 0xff, 0xff, 0xff, 0xee, \
+        0xee, 0xff, 0xff, 0xff, 0xdd, 0xff, 0xff, 0xff, 0xdd, 0xdd, \
+        0xff, 0xff, 0xff, 0xbb, 0xff, 0xff, 0xff, 0xbb, 0xbb, 0xff, \
+        0xff, 0xff, 0x77, 0xff, 0xff, 0xff, 0x77, 0x77, 0xff, 0x77, \
+        0xbb, 0xdd, 0xee, 0xff, 0xff, 0xff, 0xff, 0x00, 0xff, 0xff, \
+        0xff, 0x00, 0x00, 0xff, 0xff, 0xcc, 0xcc, 0xcc, 0x33, 0xcc, \
+        0xcc, 0xcc, 0x33, 0x33, 0xcc, 0xcc, 0xcc, 0xff, 0xff, 0xff, \
+        0xee, 0xff, 0xff, 0xff, 0xee, 0xee, 0xff, 0xff, 0xff, 0xdd, \
+        0xff, 0xff, 0xff, 0xdd, 0xdd, 0xff, 0xff, 0xff, 0xbb, 0xff, \
+        0xff, 0xff, 0xbb, 0xbb, 0xff, 0xff, 0xff, 0x77, 0xff, 0xff, \
+        0xff, 0x77, 0x77, 0xff, 0x77, 0xbb, 0xdd, 0xee,
+        0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, \
+        0xcc, 0xcc, 0xcc, 0x33, 0xcc, 0xcc, 0xcc, 0x33, 0x33, 0xcc, \
+        0xcc, 0xcc, 0xff, 0xff, 0xff, 0xee, 0xff, 0xff, 0xff, 0xee, \
+        0xee, 0xff, 0xff, 0xff, 0xdd, 0xff, 0xff, 0xff, 0xdd, 0xdd, \
+        0xff, 0xff, 0xff, 0xbb, 0xff, 0xff, 0xff, 0xbb, 0xbb, 0xff, \
+        0xff, 0xff, 0x77, 0xff, 0xff, 0xff, 0x77, 0x77, 0xff, 0x77, \
+        0xbb, 0xdd, 0xee, 0xff, 0xff, 0xff, 0xff, 0x00, 0xff, 0xff, \
+        0xff, 0x00, 0x00, 0xff, 0xff, 0xcc, 0xcc, 0xcc, 0x33, 0xcc, \
+        0xcc, 0xcc, 0x33, 0x33, 0xcc, 0xcc, 0xcc, 0xff, 0xff, 0xff, \
+        0xee, 0xff, 0xff, 0xff, 0xee, 0xee, 0xff, 0xff, 0xff, 0xdd, \
+        0xff, 0xff, 0xff, 0xdd, 0xdd, 0xff, 0xff, 0xff, 0xbb, 0xff, \
+        0xff, 0xff, 0xbb, 0xbb, 0xff, 0xff, 0xff, 0x77, 0xff, 0xff, \
+        0xff, 0x77, 0x77, 0xff, 0x77, 0xbb, 0xdd, 0xee,
+        0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, \
+        0xcc, 0xcc, 0xcc, 0x33, 0xcc, 0xcc, 0xcc, 0x33, 0x33, 0xcc, \
+        0xcc, 0xcc, 0xff, 0xff, 0xff, 0xee, 0xff, 0xff, 0xff, 0xee, \
+        0xee, 0xff, 0xff, 0xff, 0xdd, 0xff, 0xff, 0xff, 0xdd, 0xdd, \
+        0xff, 0xff, 0xff, 0xbb, 0xff, 0xff, 0xff, 0xbb, 0xbb, 0xff, \
+        0xff, 0xff, 0x77, 0xff, 0xff, 0xff, 0x77, 0x77, 0xff, 0x77, \
+        0xbb, 0xdd, 0xee, 0xff, 0xff, 0xff, 0xff, 0x00, 0xff, 0xff, \
+        0xff, 0x00, 0x00, 0xff, 0xff, 0xcc, 0xcc, 0xcc, 0x33, 0xcc, \
+        0xcc, 0xcc, 0x33, 0x33, 0xcc, 0xcc, 0xcc, 0xff, 0xff, 0xff, \
+        0xee, 0xff, 0xff, 0xff, 0xee, 0xee, 0xff, 0xff, 0xff, 0xdd, \
+        0xff, 0xff, 0xff, 0xdd, 0xdd, 0xff, 0xff, 0xff, 0xbb, 0xff, \
+        0xff, 0xff, 0xbb, 0xbb, 0xff, 0xff, 0xff, 0x77, 0xff, 0xff, \
+        0xff, 0x77, 0x77, 0xff, 0x77, 0xbb, 0xdd, 0xee};
+
+static AL_U8 SlewList[3] = {0, 2, 7};
+static AL_U32 IoOffset[7][2] = {{10, 1}, {16, 0}, {22, 1}, {28, 0}, {34, 1}, {40, 0}, {46, 1}};
+#endif
+
+/**************************** Type Definitions *******************************/
+
+/***************** Macros (Inline Functions) Definitions *********************/
+#define AL_MMC_CMD_COMP_INTR(Status)     (Status & AL_MMC_INTR_CMD_COMP_MASK)
+#define AL_MMC_XFER_COMP_INTR(Status)   (Status & AL_MMC_INTR_XFER_COMP_MASK)
+#define AL_MMC_DMA_INTR(Status)    (Status & AL_MMC_INTR_DMA_MASK)
+#define AL_MMC_CARD_INTR(Status)    (Status & (AL_MMC_INTR_CARD_INSERT_MASK | AL_MMC_INTR_CARD_REMOVE_MASK |\
+                                               AL_MMC_INTR_CARD_MASK))
+#define AL_MMC_ERR_INTR(Status)     (Status & AL_MMC_INTR_ERR_MASK)
+
+#define AL_MMC_CEIL(Val, Mask)    ((Val + Mask + 1) & (~Mask))
+
+#define AL_MMC_LOOP_REG_DELAY   do {AlSys_UDelay(10);} while (0)
+#define AL_MMC_CLK_SYNC_DELAY   do {AlSys_UDelay(100);} while (0)
+#define AL_MMC_SWITCH_DELAY     do {AlSys_UDelay(1000);} while (0)
+
+#define AL_MMC_CHK_TOUT_RST_HOST    (100)           /* 1ms */
+#define AL_MMC_CHK_TOUT_LINE_IDLE   (1000000)       /* 10s */
+#define AL_MMC_CHK_TOUT_XFER_DONE   (200000)         /* 2s */
+#define AL_MMC_CHK_TOUT_XFER_NO_DMA (100000)        /* 1s */
+#define AL_MMC_CHK_TOUT_BUFF_RDY    (100000)        /* 1s */
+
+/* buf is aligned with 64byte */
+#ifdef ENABLE_MMU
+#define AL_MMC_BUF_ALIGN_MASK       (0x3F)
+#else
+#define AL_MMC_BUF_ALIGN_MASK       (0x3)
+#endif
+
+#ifdef AL_MMC_AUTOTUNING_ENABLE
+#define AL_MMC_SAVED_BLOCK_OFFSET   (10)
+#define AL_MMC_SAVED_BLOCK_NUM      (10)
+#define AL_MMC_TUNING_BLOCK_OFFSET  (0)
+#define AL_MMC_TUNING_BLOCK_NUM     (AL_MMC_SAVED_BLOCK_OFFSET * AL_MMC_SAVED_BLOCK_NUM)
+
+#define AL_MMC_IOFUNC_BASE          TOP_PIN_BASE_ADDR
+#define AL_MMC_IOFUNC_ADDR(IoNum)   (AL_MMC_IOFUNC_BASE + ((IoNum) << 2))
+#define AL_MMC_IOPARA_BASE          (AL_MMC_IOFUNC_BASE + 0x800)
+#define AL_MMC_IOPARA_ADDR(IoNum)   (AL_MMC_IOPARA_BASE + ((IoNum) << 3))
+
+#define AL_MMC_IO_SLEW_SHIFT        (0)
+#define AL_MMC_IO_SLEW_SIZE         (3)
+#define AL_MMC_IO_SLEW_MASK         (0x7)
+#endif
+
+/************************** Variable Definitions *****************************/
+/* Hardware config generated by TD */
+extern AL_MMC_HwConfigStruct AlMmc_HwConfig[];
+
+/************************** Function Prototypes ******************************/
+static AL_S32 AlMmc_Dev_SetClkPhase(AL_MMC_DevStruct *Dev, AL_U32 Phase);
+static AL_S32 AlMmc_Dev_SelBusWidthAndSpeed(AL_MMC_DevStruct *Dev);
+static AL_S32 AlMmc_Dev_DmaSetUp(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 BlkCnt);
+static AL_S32 AlMmc_Dev_SetBlkSize(AL_MMC_DevStruct *Dev, AL_MMC_BlkLenEnum BlkLen);
+static AL_S32 AlMmc_Dev_TransferData(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 BlkCnt);
+static AL_VOID AlMmc_Dev_DisplayCsd(AL_MMC_DevStruct *Dev);
+static AL_VOID AlMmc_Dev_DisplayExtCsd(AL_MMC_RegExtCsdUnion *ExtCsd);
+static AL_VOID AlMmc_Dev_DisplayScr(AL_MMC_DevStruct *Dev);
+static AL_VOID AlMmc_Dev_DisplayAdmaDesc(AL_MMC_AdmaDescUnion *TablePtr, AL_U32 Size);
+static AL_VOID AlMmc_Dev_DisplayAllReg(AL_MMC_DevStruct *Dev);
+static AL_VOID AlMmc_Dev_DisplayCardInfo(AL_MMC_DevStruct *Dev);
+#ifdef AL_MMC_AUTOTUNING_ENABLE
+static AL_S32 AlMmc_Dev_HsTuning(AL_MMC_DevStruct *Dev, AL_U8 (*TuningBuffer)[AL_MMC_BLK_LEN_512B]);
+#endif
+static AL_S32 AlMmc_Dev_TransferNoDma(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 BlkCnt);
+
+/************************** Function Definitions ******************************/
+/**
+ * This function checks if the specified state is set for the device.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param State The state to check in the device.
+ * @return AL_TRUE if the specified state is set, otherwise AL_FALSE.
+ */
+AL_BOOL AlMmc_Dev_GetState(AL_MMC_DevStruct *Dev, AL_MMC_StateEnum State)
+{
+    return ((Dev->State & State) ? AL_TRUE : AL_FALSE);
+}
+
+/**
+ * This function sets the specified state for the device.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param State The state to set in the device.
+ */
+AL_VOID AlMmc_Dev_SetState(AL_MMC_DevStruct *Dev, AL_MMC_StateEnum State)
+{
+    Dev->State |= State;
+}
+
+/**
+ * This function clears the specified state for the device.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param State The state to clear in the device.
+ */
+AL_VOID AlMmc_Dev_ClrState(AL_MMC_DevStruct *Dev, AL_MMC_StateEnum State)
+{
+    Dev->State &= ~State;
+}
+
+/**
+ * This function resets the host controller of the device.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Rst The reset operation to perform.
+ * @return AL_OK on success, error code otherwise.
+ */
+AL_S32 AlMmc_Dev_RstHostController(AL_MMC_DevStruct *Dev, AL_MMC_RstHostEnum Rst)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_U32 Timeout = AL_MMC_CHK_TOUT_RST_HOST;
+    if (Rst & ~(AL_MMC_RST_HOST_ALL | AL_MMC_RST_HOST_CMD | AL_MMC_RST_HOST_DAT)) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Reset type error\r\n");
+        return AL_MMC_ERR_HOST_RST;
+    }
+
+    AL_U32 Ctrl = AlMmc_ll_ReadSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress);
+    Ctrl |= Rst;
+    AlMmc_ll_WriteSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress, Ctrl);
+
+    do {
+        Ctrl = AlMmc_ll_ReadSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress);
+        AL_MMC_LOOP_REG_DELAY;
+        Timeout--;
+    } while ((Ctrl & Rst) && Timeout);
+
+    if (Timeout) {
+        return AL_OK;
+    } else {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Line reset error\r\n");
+        return AL_MMC_ERR_RST_LINE_TIMEOUT;
+    }
+}
+
+/**
+ * This function initializes the top configuration of the device based on its hardware configuration.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ */
+static AL_VOID AlMmc_Dev_TopCfgInit(AL_MMC_DevStruct *Dev)
+{
+    AL_MMC_TopCfgUnion TmpReg;
+
+    /* May case an unpredictable error */
+    // AlMmc_ll_SetRelease(Dev->HwConfig.BaseAddress, AL_FALSE);
+
+    TmpReg.Reg = AlMmc_ll_ReadTopCfg(Dev->HwConfig.BaseAddress);
+    TmpReg.Bit.ClkPhase         = Dev->HwConfig.ClkPhase;
+    TmpReg.Bit.CfgCardDetectN   = Dev->HwConfig.CardDetect;
+    TmpReg.Bit.CardDetectSig    = Dev->HwConfig.CardDetectSig;
+    TmpReg.Bit.CfgCardProt      = Dev->HwConfig.WritePort;
+    TmpReg.Bit.CardWrProtSig    = Dev->HwConfig.WritePortSig;
+    AlMmc_ll_WriteTopCfg(Dev->HwConfig.BaseAddress, TmpReg.Reg);
+
+    // AlMmc_ll_SetRelease(Dev->HwConfig.BaseAddress, AL_TRUE);
+}
+
+/**
+ * This function checks if the specified line is idle.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Line The line to check.
+ * @return AL_OK if the line is idle, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_CheckLineIdle(AL_MMC_DevStruct *Dev, AL_MMC_StateMaskEnum Line)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_U32 TmpReg = {0};
+    AL_U32 Timeout = AL_MMC_CHK_TOUT_LINE_IDLE;
+
+    do {
+        TmpReg = AlMmc_ll_ReadCurState(Dev->HwConfig.BaseAddress);
+        AL_MMC_LOOP_REG_DELAY;
+        Timeout--;
+    } while ((TmpReg & Line) && Timeout);
+
+    if (!Timeout) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Check line inhibit error, state: 0x%x\r\n", TmpReg);
+        return AL_MMC_ERR_LINE_INHIBIT;
+    }
+
+    return AL_OK;
+}
+
+/**
+ * This function configures the command to be sent to the device.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Arg The argument for the command.
+ * @param BlkCnt The block count for the command.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_CmdConfig(AL_MMC_DevStruct *Dev, AL_U32 Arg, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    /* Write argument register */
+    AlMmc_ll_WriteArgument(Dev->HwConfig.BaseAddress, Arg);
+
+    if (BlkCnt > 1) {
+        switch (Dev->Config.DmaMode)
+        {
+        case AL_MMC_DMA_MODE_NONE:
+        case AL_MMC_DMA_MODE_SDMA:
+        case AL_MMC_DMA_MODE_ADMA2:
+            if (Dev->HostInfo.HostVer == AL_MMC_HOST_VER_4) {
+                AlMmc_ll_SetBlkCnt(Dev->HwConfig.BaseAddress, 0);
+                AlMmc_ll_WriteBlkCnt_SdmaSysAddr(Dev->HwConfig.BaseAddress, BlkCnt);
+            } else {
+                AlMmc_ll_SetBlkCnt(Dev->HwConfig.BaseAddress, BlkCnt);
+            }
+            break;
+        case AL_MMC_DMA_MODE_ADMA3:
+            break;
+        default:
+            break;
+        }
+    }
+
+    return AL_OK;
+}
+
+/**
+ * This function gets the command register parameters for the specified command.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Cmd The command index.
+ * @return The command register parameters.
+ */
+static AL_U32 AlMmc_Dev_GetCmdRegParam(AL_MMC_DevStruct *Dev, AL_MMC_CmdIdxEnum Cmd)
+{
+    AL_MMC_CmdXferModeUnion TmpReg = {0};
+    switch (Cmd)
+    {
+    /* No response, do nothing */
+    case AL_MMC_CMD_IDX_0:
+    case AL_MMC_CMD_IDX_4:
+    case AL_MMC_CMD_IDX_15:
+        break;
+    /* R1 */
+    case AL_MMC_CMD_IDX_11:
+    case AL_MMC_CMD_IDX_13:
+    case AL_MMC_CMD_IDX_14:
+    case AL_MMC_CMD_IDX_16:
+    case AL_MMC_CMD_IDX_23:
+    case AL_MMC_CMD_IDX_26:
+    case AL_MMC_CMD_IDX_27:
+    case AL_MMC_CMD_IDX_30:
+    case AL_MMC_CMD_IDX_31:
+    case AL_MMC_CMD_IDX_32:
+    case AL_MMC_CMD_IDX_33:
+    case AL_MMC_CMD_IDX_35:
+    case AL_MMC_CMD_IDX_36:
+    case AL_MMC_CMD_IDX_42:
+    case AL_MMC_CMD_IDX_44:
+    case AL_MMC_CMD_IDX_45:
+    case AL_MMC_CMD_IDX_46:
+    case AL_MMC_CMD_IDX_47:
+    case AL_MMC_CMD_IDX_49:
+    case AL_MMC_CMD_IDX_53:
+    case AL_MMC_CMD_IDX_54:
+    case AL_MMC_CMD_IDX_55:
+    case AL_MMC_CMD_IDX_56:
+    case AL_MMC_ACMD_IDX_6:
+    case AL_MMC_ACMD_IDX_22:
+    case AL_MMC_ACMD_IDX_42:
+        TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48;
+        TmpReg.Bit.CmdCrcChkEn = AL_TRUE;
+        TmpReg.Bit.CmdIdxChkEn = AL_TRUE;
+        break;
+    /* R1B */
+    case AL_MMC_CMD_IDX_5:
+    case AL_MMC_CMD_IDX_20:
+    case AL_MMC_CMD_IDX_28:
+    case AL_MMC_CMD_IDX_29:
+    case AL_MMC_CMD_IDX_38:
+    case AL_MMC_CMD_IDX_48:
+        TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48B;
+        TmpReg.Bit.CmdCrcChkEn = AL_TRUE;
+        TmpReg.Bit.CmdIdxChkEn = AL_TRUE;
+        break;
+    /* R2 */
+    case AL_MMC_CMD_IDX_2:
+    case AL_MMC_CMD_IDX_9:
+    case AL_MMC_CMD_IDX_10:
+        TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_136;
+        TmpReg.Bit.CmdCrcChkEn = AL_TRUE;
+        break;
+    /* R3 */
+    case AL_MMC_CMD_IDX_1:
+    case AL_MMC_ACMD_IDX_41:
+        TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48;
+        break;
+    /* R4 */
+    case AL_MMC_CMD_IDX_39:
+        TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48;
+        TmpReg.Bit.CmdCrcChkEn = AL_TRUE;
+        TmpReg.Bit.CmdIdxChkEn = AL_TRUE;
+        break;
+    /* R5 */
+    case AL_MMC_CMD_IDX_40:
+        TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48;
+        TmpReg.Bit.CmdCrcChkEn = AL_TRUE;
+        TmpReg.Bit.CmdIdxChkEn = AL_TRUE;
+        break;
+    /* SD R6, eMMC R3 */
+    case AL_MMC_CMD_IDX_3:
+        if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+            TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48;
+        } else {
+            TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48B;
+        }
+        TmpReg.Bit.CmdCrcChkEn = AL_TRUE;
+        TmpReg.Bit.CmdIdxChkEn = AL_TRUE;
+        break;
+    /* SD R7, eMMC R1 */
+    case AL_MMC_CMD_IDX_8:
+        if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_EMMC) {
+            TmpReg.Bit.DatPresentSel    = AL_TRUE;
+        }
+        TmpReg.Bit.CmdIdxChkEn = AL_TRUE;
+        TmpReg.Bit.CmdCrcChkEn = AL_TRUE;
+        TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48;
+        break;
+    case AL_MMC_CMD_IDX_6:
+        if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+            TmpReg.Bit.DatPresentSel    = AL_TRUE;
+            TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48;
+        } else {
+            TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48B;
+        }
+        TmpReg.Bit.CmdCrcChkEn = AL_TRUE;
+        TmpReg.Bit.CmdIdxChkEn = AL_TRUE;
+        break;
+    /* State stby/tran R1, conn/disconn R1B */
+    case AL_MMC_CMD_IDX_7:
+        Dev->CardState.Reg = AlMmc_ll_ReadCurState(Dev->HwConfig.BaseAddress);
+        if ((Dev->CardState.Bit.CurState == AL_MMC_CARD_STAT_STBY) ||
+            (Dev->CardState.Bit.CurState == AL_MMC_CARD_STAT_TRAN)) {
+            TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48;
+        } else {
+            TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48B;
+        }
+        TmpReg.Bit.CmdCrcChkEn = AL_TRUE;
+        TmpReg.Bit.CmdIdxChkEn = AL_TRUE;
+        break;
+    case AL_MMC_CMD_IDX_17:
+    case AL_MMC_CMD_IDX_18:
+    case AL_MMC_CMD_IDX_19:
+    case AL_MMC_CMD_IDX_21:
+    case AL_MMC_CMD_IDX_24:
+    case AL_MMC_CMD_IDX_25:
+    case AL_MMC_ACMD_IDX_13:
+    case AL_MMC_ACMD_IDX_23:
+    case AL_MMC_ACMD_IDX_51:
+        TmpReg.Bit.RespTypeSel      = AL_MMC_RESP_TYPE_LEN_48;
+        TmpReg.Bit.CmdCrcChkEn      = AL_TRUE;
+        TmpReg.Bit.CmdIdxChkEn      = AL_TRUE;
+        TmpReg.Bit.DatPresentSel    = AL_TRUE;
+        break;
+    /* SD R1B, eMMC read:R1, write:R1B */
+    case AL_MMC_CMD_IDX_12: {
+        AL_MMC_CmdXferModeUnion Ctrl;
+        Ctrl.Reg = AlMmc_ll_ReadCmd_XferMode(Dev->HwConfig.BaseAddress);
+        if ((Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_EMMC && Ctrl.Bit.DatXferDir == AL_MMC_TRANS_DIR_READ)) {
+            TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48;
+        } else {
+            TmpReg.Bit.RespTypeSel = AL_MMC_RESP_TYPE_LEN_48B;
+        }
+        TmpReg.Bit.CmdCrcChkEn      = AL_TRUE;
+        TmpReg.Bit.CmdIdxChkEn      = AL_TRUE;
+        break;
+    }
+    default:
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Invalid cmd index %d\r\n", Cmd);
+        break;
+    }
+
+    return TmpReg.Reg;
+}
+
+/**
+ *
+ * This function configures the command transfer mode based on the command index, block count, and DMA mode.
+ * It sets the direction of data transfer and enables DMA if required. Multi-block transfers and auto command
+ * settings are also configured based on the command. The function finally sends the command by writing to the
+ * command transfer mode register.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Cmd Command index to be sent.
+ * @param BlkCnt Number of blocks to be transferred.
+ * @return Returns AL_OK on success, or an error code on failure.
+ */
+static AL_S32 AlMmc_Dev_CmdSend(AL_MMC_DevStruct *Dev, AL_MMC_CmdIdxEnum Cmd, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_MMC_CmdXferModeUnion TmpReg;
+    TmpReg.Reg = AlMmc_Dev_GetCmdRegParam(Dev, Cmd);
+
+    if (AlMmc_Dev_GetState(Dev, AL_MMC_STATE_READY) && (BlkCnt != 0) && (Dev->Config.DmaMode != AL_MMC_DMA_MODE_NONE)) {
+        TmpReg.Bit.DmaEn    = AL_TRUE;
+    }
+
+    if (BlkCnt > 1) {
+        TmpReg.Bit.BlkCntEn     = AL_TRUE;
+        TmpReg.Bit.MultiBlkSel  = AL_TRUE;
+    }
+
+    /* Only read cmd set dir to read */
+    if ((Cmd == AL_MMC_CMD_IDX_6) || (Cmd == AL_MMC_CMD_IDX_8) || (Cmd == AL_MMC_CMD_IDX_17) ||
+        (Cmd == AL_MMC_CMD_IDX_18) || (Cmd == AL_MMC_ACMD_IDX_51)) {
+        TmpReg.Bit.DatXferDir = AL_MMC_TRANS_DIR_READ;
+        Dev->HostInfo.Dir = AL_MMC_TRANS_DIR_READ;
+    } else {
+        TmpReg.Bit.DatXferDir = AL_MMC_TRANS_DIR_WRITE;
+        Dev->HostInfo.Dir = AL_MMC_TRANS_DIR_WRITE;
+    }
+
+    /* For infinite length */
+    if ((Cmd == AL_MMC_CMD_IDX_18) || (Cmd == AL_MMC_CMD_IDX_25)) {
+        if (Dev->HostInfo.HostVer == AL_MMC_HOST_VER_4) {
+            TmpReg.Bit.AutoCmdEn = AL_MMC_AUTO_CMD_23;
+        }
+    }
+
+    /*Enable resp intr for host driver to check response error */
+    TmpReg.Bit.RespIntDisable   = AL_FALSE;
+    TmpReg.Bit.RespErrChkEn     = AL_FALSE;
+
+    /* Sub bit not use yet */
+
+    /* ACMD offset if 0x100 */
+    TmpReg.Bit.CmdType  = AL_MMC_CMD_TYPE_NORMAL;
+    TmpReg.Bit.CmdIdx   = Cmd & 0xFF;
+
+    AlMmc_ll_WriteCmd_XferMode(Dev->HwConfig.BaseAddress, TmpReg.Reg);
+
+    return AL_OK;
+}
+
+/**
+ *
+ * This function reads the interrupt status register to check for any command or data transfer errors.
+ * It returns specific error codes based on the type of error detected.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param State Interrupt status union indicating the current state.
+ * @return Returns AL_OK if no error is found, or a specific error code corresponding to the detected error.
+ */
+static AL_S32 AlMmc_Dev_CheckErrStat(AL_MMC_DevStruct *Dev, AL_MMC_IntrUnion State)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AlMmc_Dev_DisplayAllReg(Dev);
+    if (State.Bit.CmdToutErr) {
+        return AL_MMC_ERR_CMD_TOUT;
+    } else if (State.Bit.CmdCrcErr) {
+        return AL_MMC_ERR_CMD_CRC;
+    } else if (State.Bit.CmdEndBitErr) {
+        return AL_MMC_ERR_CMD_END_BIT;
+    } else if (State.Bit.CmdIdxErr) {
+        return AL_MMC_ERR_CMD_IDX;
+    } else if (State.Bit.DatToutErr) {
+        return AL_MMC_ERR_DATA_TOUT;
+    } else if (State.Bit.DatCrcErr) {
+        return AL_MMC_ERR_DATA_CRC;
+    } else if (State.Bit.DatEndBitErr) {
+        return AL_MMC_ERR_DATA_END_BIT;
+    } else if (State.Bit.CurLmtErr) {
+        return AL_MMC_ERR_CUR_LMT;
+    } else if (State.Bit.AutoCmdErr) {
+        return AL_MMC_ERR_AUTO_CMD;
+    } else if (State.Bit.AdmaErr) {
+        return AL_MMC_ERR_ADMA;
+    } else if (State.Bit.TuningErr) {
+        return AL_MMC_ERR_TUNING;
+    } else if (State.Bit.RespErr) {
+        return AL_MMC_ERR_RESP;
+    } else if (State.Bit.BootAckErr) {
+        return AL_MMC_ERR_BOOT_ACK;
+    } else {
+        return AL_OK;
+    }
+}
+
+/**
+ *
+ * This function polls the interrupt status register until the command completion bit is set or a timeout occurs.
+ * It checks for any errors during command execution and returns an error code if any are found. The function
+ * also logs the command response and error status.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Cmd Command index that was sent.
+ * @return Returns AL_OK on successful command completion, or an error code if the command fails or times out.
+ */
+static AL_S32 AlMmc_Dev_CheckCmdDone(AL_MMC_DevStruct *Dev, AL_MMC_CmdIdxEnum Cmd)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret      = AL_OK;
+    AL_U32 Timeout  = 1000000;
+    volatile AL_MMC_IntrUnion IntrStat   = {0};
+
+    do {
+        IntrStat.Reg = AlMmc_ll_ReadIntrStat(Dev->HwConfig.BaseAddress);
+
+        if (IntrStat.Bit.ErrIntr) {
+            AL_LOG(AL_LOG_LEVEL_ERROR, "Response: 0x%x\r\n", AlMmc_ll_ReadResp01(Dev->HwConfig.BaseAddress));
+            AL_LOG(AL_LOG_LEVEL_ERROR, "%s %d send err, code: 0x%x\r\n", ((Cmd & 0x100) ? "ACMD" : "CMD"), (Cmd & 0xFF),
+                                                                           IntrStat.Reg);
+            return AlMmc_Dev_CheckErrStat(Dev, IntrStat);
+        }
+        AL_MMC_LOOP_REG_DELAY;
+        Timeout--;
+    } while ((!IntrStat.Bit.CmdComp) && Timeout);
+
+    if (!Timeout) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "%s %d send timeout\r\n", ((Cmd & 0x100) ? "ACMD" : "CMD"), (Cmd & 0xFF));
+        return AL_MMC_ERR_CMD_COMP_TIMEOUT;
+    }
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Cmd done state: 0x%x\r\n", IntrStat.Reg);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Resp[01]: 0x%x, Resp[23]: 0x%x, Resp[45]: 0x%x, Resp[67]: 0x%x\r\n",
+                                AlMmc_ll_ReadResp01(Dev->HwConfig.BaseAddress),
+                                AlMmc_ll_ReadResp23(Dev->HwConfig.BaseAddress),
+                                AlMmc_ll_ReadResp45(Dev->HwConfig.BaseAddress),
+                                AlMmc_ll_ReadResp67(Dev->HwConfig.BaseAddress));
+
+    IntrStat.Reg = 0;
+    IntrStat.Bit.CmdComp = AL_TRUE;
+    AlMmc_ll_WriteIntrStat(Dev->HwConfig.BaseAddress, IntrStat.Reg);
+
+    return Ret;
+}
+
+/**
+ *
+ * This function performs a series of operations to send a command to the MMC device. It checks if the command
+ * line is idle, clears any pending interrupts, configures the command, sends it, and waits for it to complete.
+ * It handles both single and multiple block transfers.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Cmd Command index to be sent.
+ * @param Arg Argument to be passed with the command.
+ * @param BlkCnt Number of blocks to be transferred.
+ * @return Returns AL_OK on successful command transfer, or an error code on failure.
+ */
+static AL_S32 AlMmc_Dev_CmdTransfer(AL_MMC_DevStruct *Dev, AL_MMC_CmdIdxEnum Cmd, AL_U32 Arg, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "---[Send]: %s%d, Arg: 0x%x, BlkCnt: %d\r\n", ((Cmd & 0x100) ? "ACMD" : "CMD"), (Cmd & 0xFF),
+                                                                        Arg, BlkCnt);
+
+    Ret = AlMmc_Dev_CheckLineIdle(Dev, AL_MMC_STATE_MASK_LINE_BOTH);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* Clear all intr state */
+    AlMmc_ll_WriteIntrStat(Dev->HwConfig.BaseAddress, AL_MMC_INTR_ALL_MASK);
+
+    Ret = AlMmc_Dev_CmdConfig(Dev, Arg, BlkCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_CmdSend(Dev, Cmd, BlkCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_CheckCmdDone(Dev, Cmd);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ *
+ * This function reads the current timeout counter value from the control register, compares it with the
+ * desired value, and updates the register if they differ. This is used to configure the timeout behavior
+ * for command responses and data transfers.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Cnt Timeout counter value to be set.
+ */
+static AL_VOID AlMmc_Dev_SetToutCnt(AL_MMC_DevStruct *Dev, AL_MMC_ToutCntEnum Cnt)
+{
+    AL_MMC_CtrlSrToClkUnion TmpReg = {0};
+
+    TmpReg.Reg = AlMmc_ll_ReadSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress);
+    if (TmpReg.Bit.ToutCnt != Cnt) {
+        TmpReg.Bit.ToutCnt = Cnt;
+        AlMmc_ll_WriteSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress, TmpReg.Reg);
+    }
+}
+
+/**
+ *
+ * This function reads the host controller's capabilities from the capability registers and stores them
+ * in the device structure. It provides information about the supported features and limits of the host controller.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ */
+static AL_VOID AlMmc_Dev_GetHostInfo(AL_MMC_DevStruct *Dev)
+{
+    Dev->HostInfo.Cap1.Reg   = AlMmc_ll_ReadCapability1(Dev->HwConfig.BaseAddress);
+    Dev->HostInfo.Cap2.Reg   = AlMmc_ll_ReadCapability2(Dev->HwConfig.BaseAddress);
+}
+
+/**
+ *
+ * This function calculates the required clock divider based on the requested frequency and the input clock frequency.
+ * It then configures the MMC hardware to use the calculated clock frequency. If the requested frequency is the default
+ * frequency, and the clock generator is already set to divide mode, the function does not reconfigure the clock.
+ * Otherwise, it disables the SD clock, performs a soft reset, sets the new frequency, and then re-enables the SD clock.
+ * It also handles the case where the requested frequency is not exactly divisible by the input clock, choosing the
+ * nearest lower frequency in such cases. After setting the clock, it resets the command and data lines to avoid any
+ * glitches.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Freq The requested frequency in kHz.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_SetClkFreq(AL_MMC_DevStruct *Dev, AL_MMC_FreqKhzEnum Freq)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_MMC_CtrlSrToClkUnion TmpReg = {0};
+    AL_U32 InputClkKhz = (Dev->HwConfig.InputClk >> 2) / 1000;
+    AL_U32 FreqDiv = InputClkKhz / Freq;
+    AL_U32 FreqMod = InputClkKhz % Freq;
+    AL_U32 FreqSel = 0;
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Req freq %d Khz, div: %d, mod: %d\r\n", Freq, FreqDiv, FreqMod);
+
+    TmpReg.Reg = AlMmc_ll_ReadSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress);
+
+    /* First init is default 400k, so do not need set defualt clk freq */
+    if ((TmpReg.Bit.ClkGenSel == AL_MMC_CLK_GEN_DIV) && (Freq == AL_MMC_FREQ_KHZ_DEF)) {
+        Dev->CardInfo.FreqKhz   = AL_MMC_FREQ_KHZ_DEF;
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "Cur freq is default 400Khz\r\n");
+        return AL_OK;
+    }
+
+    if (Freq != AL_MMC_FREQ_KHZ_DEF) {
+        if (0 == FreqDiv) {
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "Freq is large than input clk, set freq to input clk %d Khz\r\n", InputClkKhz);
+            FreqSel = 0;
+        } else if (FreqMod) {
+            if (FreqDiv == TmpReg.Bit.FreqSel) {
+                AL_LOG(AL_LOG_LEVEL_DEBUG, "Freq(not divisible by input clk) need to config %d Khz equeal to cur set\r\n", InputClkKhz / (FreqDiv + 1));
+                return Ret;
+            } else {
+                AL_LOG(AL_LOG_LEVEL_DEBUG, "Freq is not divisible by input clk, floor this freq to %d Khz\r\n", InputClkKhz / (FreqDiv + 1));
+                FreqSel = FreqDiv;
+            }
+        } else {
+            FreqSel = FreqDiv - 1;
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "Set freq to %d Khz, divide is %d\r\n", Freq, FreqSel);
+        }
+
+        if ((TmpReg.Bit.ClkGenSel == AL_MMC_CLK_GEN_PROGRAM) && (TmpReg.Bit.FreqSel == FreqSel)) {
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "Request req %d Khz equeal to cur set\r\n", Freq);
+            return Ret;
+        }
+    }
+
+    /* Set sd_clk_on off */
+    TmpReg.Bit.SdClkEn = AL_FALSE;
+    AlMmc_ll_WriteSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress, TmpReg.Reg);
+
+    /* Clk soft reset */
+    AlMmc_ll_SetClkSoftRst(Dev->HwConfig.BaseAddress, AL_TRUE);
+
+    /* Delay for clk sync */
+    AL_MMC_CLK_SYNC_DELAY;
+
+    if (Freq == AL_MMC_FREQ_KHZ_DEF) {
+        TmpReg.Bit.ClkGenSel    = AL_MMC_CLK_GEN_DIV;
+        TmpReg.Bit.FreqSel      = 0;
+        Dev->CardInfo.FreqKhz   = AL_MMC_FREQ_KHZ_DEF;
+    } else {
+        TmpReg.Bit.ClkGenSel    = AL_MMC_CLK_GEN_PROGRAM;
+        TmpReg.Bit.FreqSel      = FreqSel;
+        /*Save cur card freq to card info*/
+        Dev->CardInfo.FreqKhz   = InputClkKhz /(FreqSel + 1);
+    }
+
+    AlMmc_ll_WriteSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress, TmpReg.Reg);
+
+    /* Clk soft reset release */
+    AlMmc_ll_SetClkSoftRst(Dev->HwConfig.BaseAddress, AL_FALSE);
+
+    /* Delay for clk sync */
+    AL_MMC_CLK_SYNC_DELAY;
+
+    /* Set sd_clk_on on */
+    TmpReg.Bit.SdClkEn = AL_TRUE;
+    AlMmc_ll_WriteSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress, TmpReg.Reg);
+
+    /* Reset cmd line and data line to avoid the effect of any glitch on sampling clock */
+    Ret = AlMmc_Dev_RstHostController(Dev, (AL_MMC_RST_HOST_CMD | AL_MMC_RST_HOST_DAT));
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Request: %d KHz, Set: %d KHz, Divide: %d \r\n", Freq, Dev->CardInfo.FreqKhz, TmpReg.Bit.FreqSel);
+    TmpReg.Reg = AlMmc_ll_ReadSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, " Clk mode is %s, Freq sel is %d\r\n",
+                               ((TmpReg.Bit.ClkGenSel == AL_MMC_CLK_GEN_PROGRAM) ? "Program" : "Diveded"), TmpReg.Bit.FreqSel);
+
+    return Ret;
+}
+
+/**
+ *
+ * This function resets the host controller, configures the data transfer width, DMA mode, and buffer boundary if DMA
+ * is used. It also sets the timeout count to avoid timeout errors with some cards and initializes the clock frequency
+ * to 400KHz for card initialization.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_SetUpHostController(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_U32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_RstHostController(Dev, AL_MMC_RST_HOST_CMD | AL_MMC_RST_HOST_DAT);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    AL_MMC_CtrlWuBgPwHc1Union Ctrl1;
+    Ctrl1.Reg = AlMmc_ll_ReadCtrl_Wup_Bgap_Pwr_Host1(Dev->HwConfig.BaseAddress);
+    Ctrl1.Bit.DatXferWidth = 0;
+    Ctrl1.Bit.ExtDatXfer = 0;
+    /* Set host dma mode */
+    if (Dev->Config.DmaMode != AL_MMC_DMA_MODE_NONE) {
+        Ctrl1.Bit.DmaSel = Dev->Config.DmaMode;
+        /* Set dma buffer boundary */
+        AlMmc_ll_SetSdmaBufBdary(Dev->HwConfig.BaseAddress, Dev->Config.DmaBdary);
+    }
+    AlMmc_ll_WriteCtrl_Wup_Bgap_Pwr_Host1(Dev->HwConfig.BaseAddress, Ctrl1.Reg);
+
+    /* Set max timeout cnt, or some card touch tout error */
+    AlMmc_Dev_SetToutCnt(Dev, AL_MMC_TOUT_CNT_27);
+
+    /* Set clk freq to 400Khz for init */
+    AlMmc_Dev_SetClkFreq(Dev, AL_MMC_FREQ_KHZ_DEF);
+
+    return AL_OK;
+}
+
+/**
+ *
+ * This function sends the CMD0 to reset the card and then CMD1 with the operating condition register (OCR) value to
+ * identify the card type. It checks the response to determine if the card is an eMMC or SD card. It also resets the
+ * command line after sending the commands to ensure clean state for further operations.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_IdentifyCard(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_0, 0, 0);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    AL_MMC_RegOcrUnion OcrReg = {0};
+    OcrReg.Emmc.Volt27_36   = AL_MMC_OCR_VOLT_27_36;
+    OcrReg.Emmc.AccessMode  = AL_MMC_ACC_MODE_SECTOR;
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_1, OcrReg.Reg, 0);
+    if (Ret != AL_OK) {
+        Dev->CardInfo.CardType = AL_MMC_CARD_TYPE_SD;
+    } else {
+        Dev->CardInfo.CardType = AL_MMC_CARD_TYPE_EMMC;
+    }
+
+    AlMmc_ll_WriteIntrStat(Dev->HwConfig.BaseAddress, AL_MMC_INTR_ALL_MASK);
+
+    return AlMmc_Dev_RstHostController(Dev, AL_MMC_RST_HOST_CMD);
+}
+
+/**
+ * This function reads the card detect signal configuration and determines if a card is inserted based on the slot type
+ * and the card detect signal. It supports both embedded and UHS-II embedded slot types directly returning success for
+ * these types as they do not require card detection.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK if a card is detected, AL_MMC_ERR_CARD_NOT_INSERTED otherwise.
+ */
+static AL_S32 AlMmc_Dev_CheckCardDetect(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    if ((Dev->HostInfo.Cap1.Bit.SlotType == AL_MMC_SLOT_EMBEDDED) ||
+        (Dev->HostInfo.Cap1.Bit.SlotType == AL_MMC_SLOT_UHS2_EMBEDDED)) {
+        return AL_OK;
+    }
+
+    AL_MMC_TopCfgUnion TmpReg;
+    TmpReg.Reg = AlMmc_ll_ReadTopCfg(Dev->HwConfig.BaseAddress);
+
+    if (TmpReg.Bit.CardDetectSig == AL_MMC_SIG_EMIO_MIO) {
+        AL_MMC_CurStatUnion CardState;
+        CardState.Reg = AlMmc_ll_ReadCurState(Dev->HwConfig.BaseAddress);
+        if (!CardState.Bit.CardInserted) {
+            return AL_MMC_ERR_CARD_NOT_INSERTED;
+        }
+    } else {
+        if (TmpReg.Bit.CfgCardDetectN) {
+            return AL_MMC_ERR_CARD_NOT_INSERTED;
+        }
+    }
+
+    return AL_OK;
+}
+
+/**
+ *
+ * This function sends the CMD0 to reset the card. It is used to bring the card to idle state before initializing it.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_CardReset(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_0, 0, 0);
+    if (Ret != AL_OK) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Card reset error, code 0x%x\r\n", Ret);
+    }
+
+    return Ret;
+}
+
+/**
+ * This function sends CMD8 to the card, which is used to check the operating condition of the card and
+ * its compatibility with the host's voltage range. It also performs a reset of the host controller if
+ * necessary and determines the version of the card based on the response to CMD8.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_CardIfCond(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_8, AL_MMC_CMD8_VOL_PATTERN, 0);
+    if ((Ret != AL_OK) && (Ret != AL_MMC_ERR_CMD_TOUT)) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Card reset error, code 0x%x\r\n", Ret);
+        return Ret;
+    }
+
+    if (Ret == AL_MMC_ERR_CMD_TOUT) {
+        Ret = AlMmc_Dev_RstHostController(Dev, AL_MMC_RST_HOST_CMD);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    }
+
+    AL_MMC_RegOcrUnion Ocr;
+    Ocr.Reg = AlMmc_ll_ReadResp01(Dev->HwConfig.BaseAddress);
+    if (Ocr.Reg != AL_MMC_CMD8_VOL_PATTERN) {
+        Dev->CardInfo.CardVer = AL_MMC_CARD_VER_101;
+    } else {
+        /* Equal or high than this ver, read scr register later for real ver */
+        Dev->CardInfo.CardVer = AL_MMC_CARD_VER_110;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function sets the appropriate voltage window and high capacity support bit in the OCR (Operation
+ * Conditions Register) based on the host capabilities and the card type.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return The argument to be used with ACMD41.
+ */
+static inline AL_U32 AlMmc_Dev_GenArgAcmd41(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_MMC_RegOcrUnion Arg;
+
+    Arg.Reg = 0;
+
+    if (Dev->HostInfo.Cap1.Bit.Volt33) {
+        Arg.Sd.Volt32_33    = AL_TRUE;
+        Arg.Sd.Volt33_34    = AL_TRUE;
+    }
+
+    if (Dev->HostInfo.Cap1.Bit.Volt30) {
+        Arg.Sd.Volt29_30    = AL_TRUE;
+        Arg.Sd.Volt30_31    = AL_TRUE;
+    }
+
+    if (Dev->HostInfo.Cap2.Bit.Vdd218VSup) {
+        Arg.Sd.Switch18A        = AL_TRUE;
+    }
+
+    Arg.Sd.HiCapSupport   = AL_TRUE;
+
+    return Arg.Reg;
+}
+
+/**
+ * This function is part of the card  * initialization and identification process. It repeatedly
+ * sends ACMD41 (for SD cards) or CMD1 (for MMC cards) until the card exits its power-up sequence.
+ * It also updates the card's high capacity status based on the response.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_CardOpCond(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_MMC_RegOcrUnion Ocr;
+    AL_MMC_RegOcrUnion RespOcr;
+
+    if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+        Ocr.Reg = AlMmc_Dev_GenArgAcmd41(Dev);  //0x40FF8000;   //
+    } else {
+        Ocr.Emmc.Volt27_36  = AL_MMC_OCR_VOLT_27_36;
+        Ocr.Emmc.Volt170_195 = 0x1;
+        Ocr.Emmc.AccessMode = AL_MMC_ACC_MODE_SECTOR;
+    }
+
+    do {
+        if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+            Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_55, 0, 0);
+            if (Ret != AL_OK) {
+                return Ret;
+            }
+
+            Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_ACMD_IDX_41, Ocr.Reg, 0);
+            if (Ret != AL_OK) {
+                return Ret;
+            }
+        } else {
+            Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_1, Ocr.Reg, 0);
+            if (Ret != AL_OK) {
+                return Ret;
+            }
+        }
+
+        RespOcr.Reg = AlMmc_ll_ReadResp01(Dev->HwConfig.BaseAddress);
+
+        AL_MMC_LOOP_REG_DELAY;
+    } while (!RespOcr.Sd.CardPwrUpStatBit);
+
+    Dev->CardInfo.HiCap = RespOcr.Sd.HiCapSupport;
+
+    return Ret;
+}
+
+/**
+ * This function temporarily changes the block length to 8 bytes to correctly read the
+ * SCR, then restores the original block length. It also rearranges the SCR data to match the host's
+ * endian format.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GetCardCfg(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_U32 Temp;
+    AL_U32 RestoreBlkLen = Dev->CardInfo.BlkLen;
+
+    AlMmc_Dev_SetBlkSize(Dev, AL_MMC_BLK_LEN_8B);
+    Dev->CardInfo.BlkLen = AL_MMC_BLK_LEN_8B;
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_55, Dev->CardInfo.RealAddr, 0);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_ACMD_IDX_51, 0, 1);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_TransferData(Dev, (AL_U8 *)&Dev->CardInfo.Scr.Reg[0], 1);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+
+    Dev->CardInfo.BlkLen = RestoreBlkLen;
+
+    for (AL_U32 j = 0; j < 8; j++) {
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "[%d]:0x%02x ", j, *((AL_U8 *)&Dev->CardInfo.Scr.Reg[0] + j));
+    }
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "\r\n");
+
+    Temp = Dev->CardInfo.Scr.Reg[0];
+    /* Reserve for manufacturer usage */
+    Dev->CardInfo.Scr.Reg[0] = Dev->CardInfo.Scr.Reg[1];
+    Dev->CardInfo.Scr.Reg[1] = (Temp >> 24) | ((Temp & 0xFF) << 24) | ((Temp & 0xFF00) << 8) | ((Temp & 0xFF0000) >> 8);
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Scr: [0] 0x%08x, [1] 0x%08x\r\n", Dev->CardInfo.Scr.Reg[0], Dev->CardInfo.Scr.Reg[1]);
+    AlMmc_Dev_DisplayScr(Dev);
+
+    return Ret;
+}
+
+/**
+ * This function sends CMD2 to the card and reads the CID register, which contains information
+ * such as the manufacturer ID, product name, and serial  * number. The function also rearranges
+ * the CID data to match the host's endian format.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GetCardId(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_U32 Temp;
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_2, 0, 0);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Dev->CardInfo.Cid.Reg[0] = AlMmc_ll_ReadResp01(Dev->HwConfig.BaseAddress);
+    Dev->CardInfo.Cid.Reg[1] = AlMmc_ll_ReadResp23(Dev->HwConfig.BaseAddress);
+    Dev->CardInfo.Cid.Reg[2] = AlMmc_ll_ReadResp45(Dev->HwConfig.BaseAddress);
+    Dev->CardInfo.Cid.Reg[3] = AlMmc_ll_ReadResp67(Dev->HwConfig.BaseAddress);
+
+    Temp = (Dev->CardInfo.Cid.Reg[2] & 0xFF000000) >> 24;
+    Dev->CardInfo.Cid.Reg[3] = (Dev->CardInfo.Cid.Reg[3] << 8) | Temp;
+    Temp = (Dev->CardInfo.Cid.Reg[1] & 0xFF000000) >> 24;
+    Dev->CardInfo.Cid.Reg[2] = (Dev->CardInfo.Cid.Reg[2] << 8) | Temp;
+    Temp = (Dev->CardInfo.Cid.Reg[0] & 0xFF000000) >> 24;
+    Dev->CardInfo.Cid.Reg[1] = (Dev->CardInfo.Cid.Reg[1] << 8) | Temp;
+    Dev->CardInfo.Cid.Reg[0] = (Dev->CardInfo.Cid.Reg[0] << 8);
+
+    return Ret;
+}
+
+/**
+ *
+ * This function initiates a command transfer to get the card address. For SD cards, it repeatedly
+ * sends CMD3 and reads the response until a non-zero address is obtained. For other card types, a default address is set.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GetCardAddr(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+        do {
+            Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_3, 0, 0);
+            if (Ret != AL_OK) {
+                return Ret;
+            }
+
+            Dev->CardInfo.RealAddr = AlMmc_ll_ReadResp01(Dev->HwConfig.BaseAddress) & 0xFFFF0000;
+            AL_MMC_LOOP_REG_DELAY;
+        } while (!Dev->CardInfo.RealAddr);
+    } else {
+        Dev->CardInfo.RealAddr = 0x10000;
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_3, Dev->CardInfo.RealAddr, 0);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    }
+
+    return Ret;
+}
+
+/**
+ *
+ * This function sends CMD9 to the card to ask for its CSD register, then reads the response and stores it
+ *  in the device structure. It also rearranges the CSD fields to match the expected format.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GetCsd(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_U32 Temp;
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_9, Dev->CardInfo.RealAddr, 0);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Dev->CardInfo.Csd.Reg[0] = AlMmc_ll_ReadResp01(Dev->HwConfig.BaseAddress);
+    Dev->CardInfo.Csd.Reg[1] = AlMmc_ll_ReadResp23(Dev->HwConfig.BaseAddress);
+    Dev->CardInfo.Csd.Reg[2] = AlMmc_ll_ReadResp45(Dev->HwConfig.BaseAddress);
+    Dev->CardInfo.Csd.Reg[3] = AlMmc_ll_ReadResp67(Dev->HwConfig.BaseAddress);
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG,"CSD [135:8]\r\n");
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "CSD: [3] 0X%08x, [2] 0x%08x, [1] 0x%08x, [0] 0x%08x\r\n",
+                                     Dev->CardInfo.Csd.Reg[3],
+                                     Dev->CardInfo.Csd.Reg[2],
+                                     Dev->CardInfo.Csd.Reg[1],
+                                     Dev->CardInfo.Csd.Reg[0]);
+
+    Temp = (Dev->CardInfo.Csd.Reg[2] & 0xFF000000) >> 24;
+    Dev->CardInfo.Csd.Reg[3] = (Dev->CardInfo.Csd.Reg[3] << 8) | Temp;
+    Temp = (Dev->CardInfo.Csd.Reg[1] & 0xFF000000) >> 24;
+    Dev->CardInfo.Csd.Reg[2] = (Dev->CardInfo.Csd.Reg[2] << 8) | Temp;
+    Temp = (Dev->CardInfo.Csd.Reg[0] & 0xFF000000) >> 24;
+    Dev->CardInfo.Csd.Reg[1] = (Dev->CardInfo.Csd.Reg[1] << 8) | Temp;
+    Dev->CardInfo.Csd.Reg[0] = (Dev->CardInfo.Csd.Reg[0] << 8);
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG,"CSD [127:0]\r\n");
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "CSD: [3] 0X%08x, [2] 0x%08x, [1] 0x%08x, [0] 0x%08x\r\n",
+                                     Dev->CardInfo.Csd.Reg[3],
+                                     Dev->CardInfo.Csd.Reg[2],
+                                     Dev->CardInfo.Csd.Reg[1],
+                                     Dev->CardInfo.Csd.Reg[0]);
+    AlMmc_Dev_DisplayCsd(Dev);
+
+    return Ret;
+}
+
+/**
+ *
+ * This function determines the card's capacity and block length based on its CSD register values.
+ * It supports different calculations for SD (including SDHC/SDXC) and eMMC cards.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GetCardCap(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_U32 DevSize;
+
+    if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "Sd CSD struct is ver %d \r\n",Dev->CardInfo.Csd.SdV1.CsdStruct+1);
+        if (Dev->CardInfo.Csd.SdV1.CsdStruct == AL_MMC_CSD_VER_SD10_EMMC10) {
+            /* Memory capacity = BLOCKNR * BLOCK_LEN */
+            /* BLOCKNR = (C_SIZE+1) * MULT */
+            /* MULT = 2 ^ (C_SIZE_MULT+2)       ,(C_SIZE_MULT < 8) */
+            /* BLOCK_LEN = 2 ^ (READ_BL_LEN)    ,(READ_BL_LEN < 12) */
+            DevSize = (Dev->CardInfo.Csd.SdV1.DevSize73_64 << 2) + Dev->CardInfo.Csd.SdV1.DevSize63_62;
+            Dev->CardInfo.CardCap   = (DevSize + 1) << ((Dev->CardInfo.Csd.SdV1.DevSizeMulti + 2) +
+                                                        Dev->CardInfo.Csd.SdV1.RdBlkLen - 10);
+            Dev->CardInfo.BlkLen    = 2 << Dev->CardInfo.Csd.SdV1.RdBlkLen;
+        } else {
+            /* SDHC/SDXC Memory capacity = (C_SIZE+1) * 512KByte */
+            DevSize = (Dev->CardInfo.Csd.SdV2.DevSize69_64 << 16) + Dev->CardInfo.Csd.SdV2.DevSize63_48;
+            Dev->CardInfo.CardCap   = (DevSize + 1) << 9;
+            Dev->CardInfo.BlkLen    = 2 << Dev->CardInfo.Csd.SdV2.RdBlkLen;
+        }
+    } else {
+        DevSize = (Dev->CardInfo.Csd.Emmc.DevSize73_64 << 2) + Dev->CardInfo.Csd.Emmc.DevSize63_62;
+        if (DevSize != 0xFFF) {
+            /* Memory capacity = BLOCKNR * BLOCK_LEN */
+            /* BLOCKNR = (C_SIZE+1) * MULT */
+            /* MULT = 2 ^ (C_SIZE_MULT+2)       ,(C_SIZE_MULT < 8) */
+            /* BLOCK_LEN = 2 ^ (READ_BL_LEN)    ,(READ_BL_LEN < 12) */
+            Dev->CardInfo.CardCap   = ((DevSize + 1) *
+                                       (2 << (Dev->CardInfo.Csd.Emmc.DevSizeMulti + 2)) *
+                                       (2 << Dev->CardInfo.Csd.Emmc.RdBlkLen)) >> 10;
+        } else {
+            /* large than 2GB, capacity store in EXT_CSD */
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "Emmc capacity large than 2GB\r\n");
+        }
+        Dev->CardInfo.BlkLen    = 2 << Dev->CardInfo.Csd.Emmc.RdBlkLen;
+    }
+
+    Dev->CardInfo.DevSize   = DevSize;
+    Dev->CardInfo.BlkLen    = AL_MMC_FIXED_BLK_LEN;
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Card capacity is %d KByte, blk len is %d\r\n", Dev->CardInfo.CardCap,
+                                                                                Dev->CardInfo.BlkLen);
+
+    return Ret;
+}
+
+/**
+ *
+ * This function checks the card's SCR register and sets the card version accordingly.
+ * It supports different versions for SD cards and uses the CSD register for eMMC cards.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+
+static AL_S32 AlMmc_Dev_SetCardVer(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+        if (Dev->CardInfo.Scr.Sd.SdSpec4) {
+            Dev->CardInfo.CardVer = AL_MMC_CARD_VER_4XX;
+        } else if (Dev->CardInfo.Scr.Sd.SdSpec3) {
+            Dev->CardInfo.CardVer = AL_MMC_CARD_VER_30X;
+        } else if (Dev->CardInfo.Scr.Sd.SdSpec == 0x2) {
+            Dev->CardInfo.CardVer = AL_MMC_CARD_VER_200;
+        } else {
+            /* CMD8 has check v1.01 and v1.10, so do nothing here */
+        }
+    } else {
+        Dev->CardInfo.CardVer = AL_MMC_CARD_VER_4XX;
+    }
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Card version is %d\r\n", Dev->CardInfo.CardVer);
+
+    return Ret;
+}
+
+/**
+ *
+ * This function checks the card version and sets the host version accordingly.
+ * It enables specific features based on the host version, such as Auto CMD23 support.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK on success.
+ */
+static AL_S32 AlMmc_Dev_SetHostVer(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    if (Dev->CardInfo.CardVer >= AL_MMC_CARD_VER_4XX) {
+        /* Auto cmd 23 support */
+        AL_MMC_Hc2AcUnion Ctrl2;
+        Ctrl2.Reg = AlMmc_ll_ReadAutoCmdStat_CtrlHost2(Dev->HwConfig.BaseAddress);
+        Ctrl2.Bit.Cmd23En       = AL_TRUE;
+        Ctrl2.Bit.HostVer4En    = AL_TRUE;
+        if (Dev->Config.DmaMode == AL_MMC_DMA_MODE_ADMA2) {
+            /* For ADMA2 26-bit length mode, extened from ver 4.1 */
+            Ctrl2.Bit.Amda2LenMode  = AL_TRUE;
+        }
+        AlMmc_ll_WriteAutoCmdStat_CtrlHost2(Dev->HwConfig.BaseAddress, Ctrl2.Reg);
+        Dev->HostInfo.HostVer = AL_MMC_HOST_VER_4;
+    } else {
+        Dev->HostInfo.HostVer = AL_MMC_HOST_VER_3;
+    }
+
+    return AL_OK;
+}
+
+/**
+ * This function initializes the card and retrieves its basic information.
+ *
+ * @param Dev Pointer to the device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GetCardInfo(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_GetCsd(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_GetCardCap(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function selects or deselects the card.
+ *
+ * @param Dev Pointer to the device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_SelDesCard(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_7, Dev->CardInfo.RealAddr, 0);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function retrieves the Extended CSD register information from the card.
+ *
+ * @param Dev Pointer to the device structure.
+ * @param ExtCsd Pointer to the buffer where the Extended CSD information will be stored.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GetExtCsd(AL_MMC_DevStruct *Dev, AL_U8 *ExtCsd)
+{
+    AL_ASSERT((Dev != AL_NULL) && (ExtCsd != AL_NULL), AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_SetBlkSize(Dev, Dev->CardInfo.BlkLen);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_8, 0, 1);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_TransferData(Dev, ExtCsd, 1);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    AlMmc_Dev_DisplayExtCsd((AL_MMC_RegExtCsdUnion *)ExtCsd);
+
+    return Ret;
+}
+
+/**
+ * This function calculates the card's capacity based on the Extended CSD register.
+ *
+ * @param Dev Pointer to the device structure.
+ * @param ExtCsd Pointer to the Extended CSD register union.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GetExtCardCap(AL_MMC_DevStruct *Dev, AL_MMC_RegExtCsdUnion *ExtCsd)
+{
+    AL_ASSERT((Dev != AL_NULL) && (ExtCsd != AL_NULL), AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_U32 SecCount = 0;
+
+    SecCount = *(AL_U32 *)ExtCsd->Emmc.SecCount;
+
+    /* KBytes, fixed 512B blk len */
+    Dev->CardInfo.CardCap = SecCount >> 1;
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "SecCount: 0x%x, Sec[0]: 0x%x, Sec[1]: 0x%x, Sec[2]: 0x%x, Sec[3]: 0x%x\r\n",
+                               SecCount, ExtCsd->Emmc.SecCount[0], ExtCsd->Emmc.SecCount[1], ExtCsd->Emmc.SecCount[2],
+                               ExtCsd->Emmc.SecCount[3]);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Card capacity is %u KByte, blk len is %d\r\n", Dev->CardInfo.CardCap, Dev->CardInfo.BlkLen);
+
+    return Ret;
+}
+
+/**
+ * This function retrieves extended card information including capacity.
+ *
+ * @param Dev Pointer to the device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GetExtCardInfo(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_MMC_RegExtCsdUnion ExtCsd;
+
+    Ret = AlMmc_Dev_GetExtCsd(Dev, (AL_U8 *)&ExtCsd);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* Decode Card capacity */
+    Ret = AlMmc_Dev_GetExtCardCap(Dev, &ExtCsd);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* Get boot area size */
+    Dev->CardInfo.BootAreaSize = ExtCsd.Emmc.BootSizeMult;
+
+    return Ret;
+}
+
+/**
+ * This function enumerates and initializes the SD card.
+ *
+ * @param Dev Pointer to the device structure.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_SdCardEnum(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    /* Check card detect method, and check is card detected */
+    Ret = AlMmc_Dev_CheckCardDetect(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /*Write cmd 0 to reset card to idle state*/
+    Ret = AlMmc_Dev_CardReset(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD8 */
+    Ret = AlMmc_Dev_CardIfCond(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD55/ACMD41, Get the card operating condition */
+    Ret = AlMmc_Dev_CardOpCond(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD2 */
+    Ret = AlMmc_Dev_GetCardId(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD3 */
+    Ret = AlMmc_Dev_GetCardAddr(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD9 and decode CSD register */
+    Ret = AlMmc_Dev_GetCardInfo(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD7 */
+    Ret = AlMmc_Dev_SelDesCard(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD55/ACMD51, Read Scr register */
+    Ret = AlMmc_Dev_GetCardCfg(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_SetCardVer(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function sets a specific field in the Extended CSD register.
+ *
+ * @param Dev Pointer to the device structure.
+ * @param Arg The argument to be passed to the CMD6 command.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_SetExtCsd(AL_MMC_DevStruct *Dev, AL_U32 Arg)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_6, Arg, 0);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function generates the argument for CMD6 based on the function and speed mode or bus width.
+ *
+ * @param Dev Pointer to the device structure.
+ * @param Func The function to be set or queried.
+ * @param Arg Pointer to the CMD6 argument union.
+ * @return AL_OK on success, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_GenCmd6Param(AL_MMC_DevStruct *Dev, AL_MMC_Cmd6FuncEnum Func, AL_MMC_Cmd6ArgUnion *Arg)
+{
+    AL_ASSERT((Dev != AL_NULL) && (Arg != AL_NULL), AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+        if (Func == AL_MMC_CMD6_SD_SPD_MODE) {
+            Arg->Reg             = 0x0;
+            Arg->Sd.Mode         = 0x1;
+            Arg->Sd.Rsvd30_24    = 0x0;
+            Arg->Sd.RsvdGrp6     = 0xF;
+            Arg->Sd.RsvdGrp5     = 0xF;
+            Arg->Sd.RsvdGrp4     = 0xF;
+            Arg->Sd.RsvdGrp3     = 0xF;
+            Arg->Sd.Grp2Cmd      = 0xF;
+            switch (Dev->Config.SpdMode)
+            {
+            case AL_MMC_SPD_DS_SDR12:
+                Arg->Sd.Grp1AccMode  = AL_MMC_SPD_DS_SDR12;
+                break;
+            case AL_MMC_SPD_HS_SDR25:
+                Arg->Sd.Grp1AccMode  = AL_MMC_SPD_HS_SDR25;
+                break;
+            default:
+                Ret = AL_MMC_ERR_UNSPT_SPD_MODE;
+                break;
+            }
+        } else {
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "Unsupport SD Cmd6 func\r\n");
+            Ret = AL_MMC_ERR_UNSPT_CMD6_FUNC;
+        }
+    } else {
+        if (Func == AL_MMC_CMD6_EMMC_FUNC_BUS_WIDTH) {
+            Arg->Reg         = 0;
+            Arg->Emmc.Index  = AL_MMC_CMD6_EMMC_FUNC_BUS_WIDTH;
+            /* 1-bit enum 1 >> 2 -> 0b00, 4-bit enum 4 >> 2 -> 0b01, 8-bit enum 8 >> 2 -> 0b10 */
+            Arg->Emmc.Value = Dev->Config.BusWidth >> 2;
+            if ((Dev->Config.BusWidth != AL_MMC_BUS_WIDTH_1BIT) &&
+                (Dev->Config.SpdMode == AL_MMC_SPD_DDR50_HS_DDR)) {
+                Arg->Emmc.Value += 4;
+            }
+            Arg->Emmc.Access = AL_MMC_CMD6_EMMC_ACCESS_WR_BYTE;
+        } else if (Func == AL_MMC_CMD6_EMMC_FUNC_HS_TIMING) {
+            Arg->Reg                = 0x0;
+            Arg->Emmc.SetZero31_26  = 0x0;
+            Arg->Emmc.Access        = AL_MMC_CMD6_EMMC_ACCESS_WR_BYTE;
+            Arg->Emmc.Index         = AL_MMC_CMD6_EMMC_FUNC_HS_TIMING;
+            Arg->Emmc.SetZero7_3    = 0x0;
+            Arg->Emmc.CmdSet        = 0x0;
+            switch (Dev->Config.SpdMode)
+            {
+            case AL_MMC_SPD_DS_SDR12:
+                Arg->Emmc.Value         = 0x0;  //DS
+                break;
+            case AL_MMC_SPD_HS_SDR25:
+            case AL_MMC_SPD_DDR50_HS_DDR:
+                Arg->Emmc.Value         = 0x1;  //HS
+                break;
+            case AL_MMC_SPD_SDR104_HS200:
+                Arg->Emmc.Value         = 0x2;  //HS200
+                break;
+            default:
+                Ret = AL_MMC_ERR_UNSPT_SPD_MODE;
+                break;
+            }
+        } else if (Func == AL_MMC_CMD6_EMMC_BOOT_PART) {
+            Arg->Emmc.SetZero31_26  = 0x0;
+            Arg->Emmc.Access        = AL_MMC_CMD6_EMMC_ACCESS_WR_BYTE;
+            Arg->Emmc.Index         = AL_MMC_CMD6_EMMC_BOOT_PART;
+            Arg->Emmc.SetZero7_3    = 0x0;
+            Arg->Emmc.CmdSet        = 0x0;
+        } else {
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "Unsupport eMMC Cmd6 func\r\n");
+            Ret = AL_MMC_ERR_UNSPT_CMD6_FUNC;
+        }
+    }
+
+    return Ret;
+}
+
+/**
+ * This function configures the bus width of the MMC device based on the card's capabilities and the desired configuration.
+ * It first checks if the card is an SD card and then sets the bus width accordingly. If the card supports a 4-bit bus width,
+ * it attempts to set the bus width to 4-bit if not already set. If the card only supports a 1-bit bus width, it sets the bus width to 1-bit.
+ * After setting the bus width, it sends the appropriate command to the card to apply the new bus width setting.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_S32 Returns AL_OK on success, or an error code on failure.
+ */
+static AL_S32 AlMmc_Dev_SetBusWidth(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+        if (Dev->CardInfo.Scr.Sd.SdBusWidth & AL_MMC_BUS_WIDTH_4BIT) {
+            /* Card support 1-bit and 4-bit bus width */
+            if (Dev->Config.BusWidth > AL_MMC_BUS_WIDTH_4BIT) {
+                AL_LOG(AL_LOG_LEVEL_INFO, "Config bus width %d-bit not support, modify to %d-bit\r\n", Dev->Config.BusWidth,
+                    AL_MMC_BUS_WIDTH_4BIT);
+                Dev->Config.BusWidth = AL_MMC_BUS_WIDTH_4BIT;
+            } else {
+                AL_LOG(AL_LOG_LEVEL_INFO, "Card support bus width 4-bit\r\n");
+            }
+        } else {
+            /* Card only support 1-bit bus width */
+            AL_LOG(AL_LOG_LEVEL_INFO, "Card only support bus width %d-bit, bus width:0x%x\r\n",
+                                      AL_MMC_BUS_WIDTH_1BIT, Dev->CardInfo.Scr.Sd.SdBusWidth);
+            Dev->Config.BusWidth = AL_MMC_BUS_WIDTH_1BIT;
+        }
+
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_55, Dev->CardInfo.RealAddr, 0);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+
+        /* 1-bit enum 1 >> 1 -> 0b00, 4-bit enum 4 >> 1 -> 0b10 */
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_ACMD_IDX_6, (Dev->Config.BusWidth >> 1), 0);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    } else {
+        if ((!Dev->HostInfo.Cap1.Bit.Embedded8Bit) && (Dev->Config.BusWidth == AL_MMC_BUS_WIDTH_8BIT)) {
+            AL_LOG(AL_LOG_LEVEL_INFO, "Host not support 8-bit, set to 4-bit\r\n");
+            Dev->Config.BusWidth = AL_MMC_BUS_WIDTH_4BIT;
+        }
+
+        AL_MMC_Cmd6ArgUnion Arg = {.Reg = 0};
+        AlMmc_Dev_GenCmd6Param(Dev, AL_MMC_CMD6_EMMC_FUNC_BUS_WIDTH, &Arg);
+
+        Ret = AlMmc_Dev_SetExtCsd(Dev, Arg.Reg);
+        if (Ret != AL_OK) {
+            AL_LOG(AL_LOG_LEVEL_ERROR, "Switch %d-bit error\r\n", Dev->Config.BusWidth);
+            return Ret;
+        }
+    }
+
+    /* Delay for switch complete */
+    AL_MMC_SWITCH_DELAY;
+
+    /* Set host bus width */
+    if (Dev->Config.BusWidth != AL_MMC_BUS_WIDTH_1BIT) {
+        AL_MMC_CtrlWuBgPwHc1Union Ctrl;
+        Ctrl.Reg = AlMmc_ll_ReadCtrl_Wup_Bgap_Pwr_Host1(Dev->HwConfig.BaseAddress);
+
+        Ctrl.Bit.DatXferWidth = AL_TRUE;
+
+        if (Dev->Config.BusWidth == AL_MMC_BUS_WIDTH_8BIT) {
+            Ctrl.Bit.ExtDatXfer = AL_TRUE;
+        }
+
+        AlMmc_ll_WriteCtrl_Wup_Bgap_Pwr_Host1(Dev->HwConfig.BaseAddress, Ctrl.Reg);
+    }
+
+    Dev->CardInfo.BusWidth = Dev->Config.BusWidth;
+
+    return Ret;
+}
+
+/**
+ * Sets the bus speed for the MMC device.
+ * This function configures the bus speed of the MMC device based on the card's capabilities and the desired configuration.
+ * It handles both SD and eMMC cards, setting the bus speed by sending the appropriate command to the card.
+ * For SD cards, it sets the block size to 64 bytes before sending the command to change the bus speed.
+ * For eMMC cards, it generates the command parameter for changing the bus speed and sends the command to the card.
+ * After setting the bus speed, it checks the result to ensure the speed was set correctly.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_S32 Returns AL_OK on success, or an error code on failure.
+ */
+static AL_S32 AlMmc_Dev_GetBusSpeed(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    /* TODO: */
+    return Ret;
+}
+
+/**
+ * This function configures the block size for data transfers with the MMC device.
+ * It first checks if the command and data lines are idle before sending the command to set the block size.
+ * After sending the command, it updates the hardware configuration to use the new block size.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param BlkLen The desired block length to set.
+ * @return AL_S32 Returns AL_OK on success, or an error code on failure.
+ */
+static AL_S32 AlMmc_Dev_SetBusSpeed(AL_MMC_DevStruct *Dev)
+{
+    AL_S32 Ret = AL_OK;
+    AL_MMC_Cmd6ArgUnion Arg;
+
+    if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+        AL_U32 RestoreBlkLen = Dev->CardInfo.BlkLen;
+        AL_U8 Temp[64] = {0};
+
+        AlMmc_Dev_SetBlkSize(Dev, AL_MMC_BLK_LEN_64B);
+        Dev->CardInfo.BlkLen = AL_MMC_BLK_LEN_64B;
+
+        Ret = AlMmc_Dev_GenCmd6Param(Dev, AL_MMC_CMD6_SD_SPD_MODE, &Arg);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_6, Arg.Reg, 1);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+
+        Ret = AlMmc_Dev_TransferData(Dev, &Temp[0], 1);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+
+        Dev->CardInfo.BlkLen = RestoreBlkLen;
+
+        /* Check bus speed bit set result */
+        if (!(Temp[16] & 0x1)) {
+            return AL_MMC_ERR_SET_BUS_SPEED;
+        }
+
+        for (AL_U32 j = 0; j < AL_MMC_BLK_LEN_64B; j++) {
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "[%d]:0x%02x ", j, Temp[j]);
+        }
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "\r\n");
+    } else {
+        Ret = AlMmc_Dev_GenCmd6Param(Dev, AL_MMC_CMD6_EMMC_FUNC_HS_TIMING, &Arg);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+
+        Ret = AlMmc_Dev_SetExtCsd(Dev, Arg.Reg);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_13, Dev->CardInfo.RealAddr, 0);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+
+        AL_MMC_RegExtCsdUnion ExtCsd = {0};
+        Ret = AlMmc_Dev_GetExtCsd(Dev, (AL_U8 *)&ExtCsd);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+
+        if ((Dev->Config.SpdMode == AL_MMC_SPD_HS_SDR25 && ExtCsd.Emmc.HsTiming != AL_MMC_SPD_HS_SDR25) ||
+            (Dev->Config.SpdMode == AL_MMC_SPD_SDR104_HS200 && ExtCsd.Emmc.HsTiming != 2)) {
+                AL_LOG(AL_LOG_LEVEL_DEBUG, "eMMC set bus speed err, spd mode: %d hs timing: %d\r\n",
+                       Dev->Config.SpdMode, ExtCsd.Emmc.HsTiming);
+                return AL_MMC_ERR_SET_BUS_SPEED;
+        }
+    }
+
+    /* Delay for switch complete */
+    AL_MMC_SWITCH_DELAY;
+
+    AL_MMC_CtrlWuBgPwHc1Union Ctrl1;
+    Ctrl1.Reg = AlMmc_ll_ReadCtrl_Wup_Bgap_Pwr_Host1(Dev->HwConfig.BaseAddress);
+    Ctrl1.Bit.HiSpdEn = 0x1;
+    AlMmc_ll_WriteCtrl_Wup_Bgap_Pwr_Host1(Dev->HwConfig.BaseAddress, Ctrl1.Reg);
+
+    /* Delay for switch complete */
+    AL_MMC_SWITCH_DELAY;
+
+    return Ret;
+}
+
+/**
+ * This function performs the initialization steps required to set up the SD card mode.
+ * It includes setting the bus width and speed based on the card's capabilities and the desired configuration.
+ * It checks if the card supports high capacity and high speed modes and configures the card accordingly.
+ * The function also adjusts the host controller's clock frequency to match the card's speed mode.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_S32 Returns AL_OK on success, or an error code on failure.
+ */
+
+static AL_S32 AlMmc_Dev_SetBlkSize(AL_MMC_DevStruct *Dev, AL_MMC_BlkLenEnum BlkLen)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_CheckLineIdle(Dev, AL_MMC_STATE_MASK_CMD_LINE_BOTH |
+                                       AL_MMC_STATE_MASK_WR_ACTIVE |
+                                       AL_MMC_STATE_MASK_RD_ACTIVE);
+    if (Ret != AL_OK) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Set blk size check line idle error\r\n");
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_16, BlkLen, 0);
+    if (Ret != AL_OK) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Set blk size CMD 16 error\r\n");
+        return Ret;
+    }
+
+    AlMmc_ll_SetTransBlkSize(Dev->HwConfig.BaseAddress, BlkLen);
+
+    return Ret;
+}
+
+#ifdef AL_MMC_AUTOTUNING_ENABLE
+static AL_S32 AlMmc_Dev_SwitchAccessPartition(AL_MMC_DevStruct *Dev, AL_MMC_PartAccEnum Part)
+{
+    AL_S32 Ret = AL_OK;
+    AL_MMC_Cmd6ArgUnion Arg = {.Reg = 0};
+
+    Arg.Emmc.Value = Part;
+    AlMmc_Dev_GenCmd6Param(Dev, AL_MMC_CMD6_EMMC_BOOT_PART, &Arg);
+
+    Ret = AlMmc_Dev_SetExtCsd(Dev, Arg.Reg);
+    if (Ret != AL_OK) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Switch boot part error\r\n");
+        return Ret;
+    }
+
+    return Ret;
+}
+
+static AL_U32 AlMmc_Dev_GetIoOffset(AL_MMC_DevStruct *Dev)
+{
+    AL_U32 i;
+    AL_U32 Val;
+    AL_U8 DevId = (Dev->HwConfig.BaseAddress == MMC0__BASE_ADDR) ? 0 : 1;
+
+    for (i = 0; i < (sizeof(IoOffset) >> 3); i++) {
+        if (IoOffset[i][1] == DevId) {
+            Val = AL_REG32_READ(AL_MMC_IOFUNC_ADDR(IoOffset[i][0]));
+            if ((Val == 0xA) || ((Val == 0xB) && (DevId == 0))) {
+                return IoOffset[i][0];
+            }
+        }
+    }
+}
+
+static AL_VOID AlMmc_Dev_SetSlewRate(AL_MMC_DevStruct *Dev, AL_U8 Rate)
+{
+    AL_U32 IoStart = Dev->HostInfo.IoNum;
+    AL_U32 IoNum = (Dev->Config.BusWidth == AL_MMC_BUS_WIDTH_8BIT) ? 10 : 6;
+
+    for (AL_U32 i = 0; i < IoNum; i++) {
+        AL_REG32_SET_BITS(AL_MMC_IOPARA_ADDR(IoStart + i), AL_MMC_IO_SLEW_SHIFT,
+                          AL_MMC_IO_SLEW_SIZE, Rate);
+    }
+
+    AL_LOG(AL_LOG_LEVEL_INFO, "Set IO %d - %d, addr 0x%x - 0x%x slew rate %d\r\n", IoStart,
+           IoStart + IoNum - 1, AL_MMC_IOPARA_ADDR(IoStart), AL_MMC_IOPARA_ADDR(IoStart + IoNum - 1), Rate);
+}
+#endif
+
+/**
+ * This function performs the enumeration and mode initialization for an SD card.
+ * It first enumerates the card to identify its capabilities and then initializes the card mode,
+ * including setting the bus width and speed.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_S32 Returns AL_OK on success, or an error code on failure.
+ */
+static AL_S32 AlMmc_Dev_MmcModeInit(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    #ifdef AL_MMC_AUTOTUNING_ENABLE
+    AL_U32 PhaseRes[MMC_TOP_NS_CFG_CTRL_CLK_PHASE_SEL_MAX] = {0};
+    AL_S32 i, Middle, Window, n = MMC_TOP_NS_CFG_CTRL_CLK_PHASE_SEL_MAX;
+    static AL_U8 CACHE_LINE_ALIGN SavedBlockData[AL_MMC_SAVED_BLOCK_NUM][AL_MMC_BLK_LEN_512B] = {0};
+    AL_S32 FirstZero = -1;
+    AL_S32 Start = -1;
+    AL_S32 PreWindow = -1;
+    #endif
+    AL_S32 BestPhase = -1;
+
+    #ifdef AL_MMC_AUTOTUNING_ENABLE
+    if (Dev->CardInfo.BootAreaSize != 0) {
+        AlMmc_Dev_SwitchAccessPartition(Dev, AL_MMC_PART_ACC_BOOT2);
+    }
+
+    if (Dev->HwConfig.PhaseOffset != MMC_TOP_NS_CFG_CTRL_CLK_PHASE_SEL_MAX) {
+        for (i = 0; i < n; i++) {
+            if (i < Dev->HwConfig.PhaseOffset) {
+                PhaseRes[i] = Dev->HwConfig.PhaseVal[i];
+                continue;
+            }
+            AlMmc_Dev_SetClkPhase(Dev, i);
+            AlMmc_Dev_SelBusWidthAndSpeed(Dev);
+            for (AL_U32 j = 0; j < sizeof(SlewList); j++) {
+                AlMmc_Dev_SetSlewRate(Dev, j);
+
+                Ret |= AlMmc_Dev_HsTuning(Dev, SavedBlockData);
+                if (Ret != AL_OK) {
+                    AL_LOG(AL_LOG_LEVEL_ERROR, "MMC tuning cur slow rate %d\r\n", j);
+                }
+            }
+            if (Ret != AL_OK) {
+                PhaseRes[i] = 0;
+                Dev->HwConfig.PhaseVal[i] = 0;
+                AL_LOG(AL_LOG_LEVEL_ERROR, "MMC check rx clk phase %d: \033[31mfail\033[0m\r\n", i);
+                Dev->HwConfig.PhaseOffset = i + 1;
+                return AL_MMC_ERR_TUNING_FAIL;
+            } else {
+                PhaseRes[i] = 1;
+                Dev->HwConfig.PhaseVal[i] = 1;
+                AL_LOG(AL_LOG_LEVEL_INFO, "MMC check rx clk phase %d: \033[32msuccess\033[0m\r\n", i);
+            }
+        }
+    } else {
+        memcpy(PhaseRes, Dev->HwConfig.PhaseVal, sizeof(Dev->HwConfig.PhaseVal));
+    }
+
+
+    for (i = 0; i < n; i++) {
+        if (FirstZero == -1 && PhaseRes[i] == 0) {
+            if (i == n - 1) {
+                return AL_MMC_ERR_TUNING;
+            } else {
+                FirstZero = i;
+            }
+        }
+
+        if (PhaseRes[i] == 1 && (Start == -1 || PhaseRes[(i - 1 + n) % n] == 0)) {
+            Start = i;
+        } else if (PhaseRes[i] == 0 && Start != -1) {
+            Middle = (Start + i - 1) >> 1;
+            Window = (i + n - Start) % n;
+            AL_LOG(AL_LOG_LEVEL_INFO, "window: start - %d, Middle - %d, end - %d\r\n", Start, Middle, i - 1);
+            Start = -1;
+            if (Window > PreWindow) {
+                PreWindow = Window;
+                BestPhase = Middle;
+            }
+        }
+
+        /* cal ring array */
+        if (i == n - 1 && PhaseRes[i] == 1) {
+            if (FirstZero == -1) {
+                AL_LOG(AL_LOG_LEVEL_INFO, "All phase available, select default phase 4\r\n");
+                Middle = 4;
+                Window = n - Start;
+            } else {
+                Middle = ((Start + n + FirstZero) >> 1) % n;
+                Window = n - Start + FirstZero;
+                AL_LOG(AL_LOG_LEVEL_INFO, "window: start - %d, middle - %d, end - %d\r\n",
+                    Start, Middle, (FirstZero + n - 1) % n);
+            }
+            if (Window > PreWindow) {
+                PreWindow = Window;
+                BestPhase = Middle;
+            }
+        }
+
+    }
+
+    AlMmc_Dev_SetSlewRate(Dev, Dev->HostInfo.IoSlewRate);
+    AL_LOG(AL_LOG_LEVEL_INFO, "Select best rx clk phase \033[32m%d\033[0m\r\n", BestPhase);
+    #else
+    BestPhase = Dev->Config.FixedPhase;
+    AL_LOG(AL_LOG_LEVEL_INFO, "Fixed rx clk phase \033[32m%d\033[0m\r\n", BestPhase);
+    #endif
+
+    AlMmc_Dev_SetClkPhase(Dev, BestPhase);
+
+    Ret = AlMmc_Dev_SelBusWidthAndSpeed(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    #ifdef AL_MMC_AUTOTUNING_ENABLE
+    if (Dev->CardInfo.BootAreaSize == 0) {
+        if (Dev->HostInfo.TuningBlockSaved == AL_TRUE) {
+            AlMmc_Dev_SetState(Dev, AL_MMC_STATE_READY | AL_MMC_STATE_TUNING);
+
+            for (AL_U32 j = 0; j < AL_MMC_SAVED_BLOCK_NUM; j++) {
+                Ret = AlMmc_Dev_Write(Dev, SavedBlockData[j], Dev->HostInfo.TuningOffset + ((j + 1) * AL_MMC_SAVED_BLOCK_OFFSET - 1), 1);
+                if (Ret != AL_OK) {
+                    AL_LOG(AL_LOG_LEVEL_ERROR, "MMC tuning data restore \033[31mfail\033[0m: 0x%x\r\n", Ret);
+                    AlMmc_Dev_ClrState(Dev, AL_MMC_STATE_READY | AL_MMC_STATE_TUNING);
+                    Dev->HostInfo.TuningBlockSaved = AL_FALSE;
+                    return AL_MMC_ERR_TUNING_RESTORE_FAIL;
+                }
+            }
+
+            AlMmc_Dev_ClrState(Dev, AL_MMC_STATE_READY | AL_MMC_STATE_TUNING);
+            Dev->HostInfo.TuningBlockSaved = AL_FALSE;
+        }
+    } else {
+        AlMmc_Dev_SwitchAccessPartition(Dev, AL_MMC_PART_ACC_USER);
+    }
+    #endif
+
+    Ret = AlMmc_Dev_SetBlkSize(Dev, Dev->CardInfo.BlkLen);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ *
+ * This function initializes an SD card by enumerating the card and then initializing it in SD mode.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK if successful, error code otherwise.
+ */
+AL_S32 AlMmc_Dev_SdCardInit(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_SdCardEnum(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_MmcModeInit(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ *
+ * This function performs the enumeration process for an eMMC card, including card reset, operating condition
+ * command, card identification, and setting the card address. It also retrieves the card's CSD and EXT_CSD
+ * information.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK if successful, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_EmmcCardEnum(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    /* Check card detect method, and check is card detected */
+    Ret = AlMmc_Dev_CheckCardDetect(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /*Write cmd 0 to reset card to idle state*/
+    Ret = AlMmc_Dev_CardReset(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD1 */
+    Ret = AlMmc_Dev_CardOpCond(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD2 */
+    Ret = AlMmc_Dev_GetCardId(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD3 */
+    Ret = AlMmc_Dev_GetCardAddr(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD9 and decode CSD register */
+    Ret = AlMmc_Dev_GetCardInfo(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* CMD7 */
+    Ret = AlMmc_Dev_SelDesCard(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    if (Dev->CardInfo.DevSize == 0xFFF) {
+        /* CMD8, get EXT_CSD for card capacity */
+        Ret = AlMmc_Dev_GetExtCardInfo(Dev);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    }
+
+    Ret = AlMmc_Dev_SetCardVer(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function sets the clock phase for an eMMC device.
+ * It performs a soft reset on the clock, sets the desired clock phase,
+ * releases the soft reset, and then waits for clock synchronization.
+ * Finally, it resets the host controller's command and data lines to ensure proper operation.
+ *
+ * @param Dev Pointer to the structure containing the hardware configuration of the eMMC device.
+ * @param Phase The clock phase to be set for the eMMC device.
+ * @return AL_OK if successful, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_SetClkPhase(AL_MMC_DevStruct *Dev, AL_U32 Phase)
+{
+    AL_S32 Ret = AL_OK;
+
+    /* Clk soft reset */
+    AlMmc_ll_SetClkSoftRst(Dev->HwConfig.BaseAddress, AL_TRUE);
+
+    AlMmc_ll_SetClkPhase(Dev->HwConfig.BaseAddress, Phase);
+
+    /* Clk soft reset release */
+    AlMmc_ll_SetClkSoftRst(Dev->HwConfig.BaseAddress, AL_FALSE);
+
+    /* Delay for clk sync */
+    AL_MMC_CLK_SYNC_DELAY;
+
+    Ret = AlMmc_Dev_RstHostController(Dev, AL_MMC_RST_HOST_CMD | AL_MMC_RST_HOST_DAT);
+
+    return Ret;
+}
+
+#ifdef AL_MMC_AUTOTUNING_ENABLE
+static AL_S32 AlMmc_Dev_HsTuning(AL_MMC_DevStruct *Dev, AL_U8 (*TuningBuffer)[AL_MMC_BLK_LEN_512B])
+{
+    AL_S32 Ret = AL_OK;
+    AL_U8 CACHE_LINE_ALIGN ReadBuffer[AL_MMC_BLK_LEN_512B] = {0};
+
+    if ((Dev->Config.BusWidth != AL_MMC_BUS_WIDTH_1BIT) || (Dev->CardInfo.SpdMode != AL_MMC_SPD_DS_SDR12)) {
+        AlMmc_Dev_SetState(Dev, AL_MMC_STATE_READY | AL_MMC_STATE_TUNING);
+
+        if (Dev->CardInfo.BootAreaSize == 0) {
+            if (Dev->HostInfo.TuningBlockSaved == AL_FALSE) {
+                for (AL_U32 j = 0; j < AL_MMC_SAVED_BLOCK_NUM; j++) {
+                    Ret = AlMmc_Dev_Read(Dev, TuningBuffer[j], Dev->HostInfo.TuningOffset + ((j + 1) * AL_MMC_SAVED_BLOCK_OFFSET - 1), 1);
+                    if (Ret != AL_OK) {
+                        AL_LOG(AL_LOG_LEVEL_ERROR, "MMC save data \033[31mfail\033[0m: 0x%x\r\n", Ret);
+                        goto RETURN;
+                    }
+                }
+                Dev->HostInfo.TuningBlockSaved = AL_TRUE;
+            }
+
+            for (AL_U32 j = 0; j < AL_MMC_SAVED_BLOCK_NUM; j++) {
+                Ret = AlMmc_Dev_Write(Dev, TuningBlock, Dev->HostInfo.TuningOffset + ((j + 1) * AL_MMC_SAVED_BLOCK_OFFSET - 1), 1);
+                if (Ret != AL_OK) {
+                    AL_LOG(AL_LOG_LEVEL_ERROR, "MMC tuning write \033[31mfail\033[0m: 0x%x\r\n", Ret);
+                    goto RETURN;
+                }
+            }
+        } else {
+            if (Dev->HostInfo.TuningWriteDone == AL_FALSE) {
+                Ret = AlMmc_Dev_Write(Dev, TuningBlock, AL_MMC_TUNING_BLOCK_OFFSET, AL_MMC_TUNING_BLOCK_NUM);
+                if (Ret != AL_OK) {
+                    AL_LOG(AL_LOG_LEVEL_ERROR, "MMC tuning write \033[31mfail\033[0m: 0x%x\r\n", Ret);
+                    goto RETURN;
+                }
+                Dev->HostInfo.TuningWriteDone = AL_TRUE;
+            }
+        }
+
+        Ret = AlMmc_Dev_Read(Dev, ReadBuffer, AL_MMC_TUNING_BLOCK_OFFSET, AL_MMC_TUNING_BLOCK_NUM);
+        if (Ret != AL_OK) {
+            AL_LOG(AL_LOG_LEVEL_ERROR, "MMC tuning read \033[31mfail\033[0m: 0x%x\r\n", Ret);
+            goto RETURN;
+        }
+
+        Ret = memcmp(TuningBlock, ReadBuffer, AL_MMC_BLK_LEN_512B);
+        if (Ret != AL_OK) {
+            AL_LOG(AL_LOG_LEVEL_ERROR, "MMC tuning check \033[31mfail\033[0m: 0x%x\r\n", Ret);
+            goto RETURN;
+        }
+    }
+
+RETURN:
+    AlMmc_Dev_ClrState(Dev, AL_MMC_STATE_READY | AL_MMC_STATE_TUNING);
+    return Ret;
+}
+#endif
+
+/**
+ * This function selects the bus width and speed for an eMMC device.
+ * It asserts that the device structure pointer is not null, sets the bus width,
+ * retrieves and sets the bus speed, updates the host controller frequency,
+ * and updates the IP register speed mode selection field.
+ * Additionally, it performs a transfer to check the configuration if necessary.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK if successful, error code otherwise.
+ */
+static AL_S32 AlMmc_Dev_SelBusWidthAndSpeed(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_SetBusWidth(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    if (Dev->Config.SpdMode != AL_MMC_SPD_DS_SDR12) {
+        Ret = AlMmc_Dev_GetBusSpeed(Dev);
+
+        if (Dev->Config.Switch1v8) {
+        }
+
+        if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD && Dev->CardInfo.CardVer == AL_MMC_CARD_VER_101) {
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "Low ver SD card, set to default speed\r\n");
+            Dev->CardInfo.SpdMode = AL_MMC_SPD_DS_SDR12;
+            if (Dev->Config.FreqKhz > AL_MMC_FREQ_KHZ_25000) {
+                Dev->Config.FreqKhz = AL_MMC_FREQ_KHZ_25000;
+            }
+        } else {
+            Ret = AlMmc_Dev_SetBusSpeed(Dev);
+            if (Ret != AL_OK) {
+                return Ret;
+            }
+        }
+    }
+
+    Dev->CardInfo.SpdMode = Dev->Config.SpdMode;
+
+    /* Change host controller freq */
+    Ret = AlMmc_Dev_SetClkFreq(Dev, Dev->Config.FreqKhz);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    /* Update IP register speed mode sel field */
+    AL_MMC_Hc2AcUnion Ctrl2;
+    Ctrl2.Reg = AlMmc_ll_ReadAutoCmdStat_CtrlHost2(Dev->HwConfig.BaseAddress);
+    Ctrl2.Bit.UhsModeSel = Dev->CardInfo.SpdMode;
+    AlMmc_ll_WriteAutoCmdStat_CtrlHost2(Dev->HwConfig.BaseAddress, Ctrl2.Reg);
+
+    Ret = AlMmc_Dev_SetBlkSize(Dev, Dev->CardInfo.BlkLen);
+
+    return Ret;
+}
+
+/**
+ *
+ * This function initializes an eMMC card by enumerating the card and then initializing it in eMMC mode.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK if successful, error code otherwise.
+ */
+AL_S32 AlMmc_Dev_EmmcCardInit(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    Ret = AlMmc_Dev_EmmcCardEnum(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_MmcModeInit(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ *
+ * This function initializes the MMC device based on the provided hardware and initialization configurations.
+ * It sets up the host controller, clears all states, and identifies the card type (SD or eMMC) to perform
+ * card-specific initialization.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param HwConfig Pointer to the hardware configuration structure.
+ * @param InitConfig Pointer to the initialization configuration structure.
+ * @return AL_OK if successful, error code otherwise.
+ */
+AL_S32 AlMmc_Dev_Init(AL_MMC_DevStruct *Dev, AL_MMC_HwConfigStruct *HwConfig, AL_MMC_InitStruct *InitConfig)
+{
+    AL_ASSERT((Dev != AL_NULL) && (HwConfig != AL_NULL), AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_MMC_DmaModeEnum DmaMode = AL_MMC_DMA_MODE_NONE;
+
+    /* Configurable mode default divide 4 */
+    // HwConfig->InputClk >>= 2;
+    InitConfig->FreqKhz = HwConfig->IoClk / 1000;
+    if (InitConfig->FreqKhz > AL_MMC_FREQ_KHZ_25000 && InitConfig->FreqKhz <= AL_MMC_FREQ_KHZ_50000 && InitConfig->SpdMode == AL_MMC_SPD_DS_SDR12) {
+        InitConfig->SpdMode = AL_MMC_SPD_HS_SDR25;
+    } else if (InitConfig->FreqKhz > AL_MMC_FREQ_KHZ_50000 && InitConfig->SpdMode < AL_MMC_SPD_SDR104_HS200) {
+        InitConfig->SpdMode = AL_MMC_SPD_SDR104_HS200;
+    }
+    AL_LOG(AL_LOG_LEVEL_INFO, "Request input clk %d Hz, IO clk %d Hz\r\n", HwConfig->InputClk,
+                                                                           HwConfig->IoClk);
+
+    Dev->Config     = (InitConfig == AL_NULL) ? AlMmc_DefInitConfig : (*InitConfig);
+    Dev->HwConfig   = *HwConfig;
+
+    #ifdef AL_MMC_AUTOTUNING_ENABLE
+    Dev->HostInfo.TuningBlockSaved  = AL_FALSE;
+    Dev->HostInfo.TuningWriteDone   = AL_FALSE;
+    Dev->HostInfo.TuningOffset      = AL_MMC_TUNING_BLOCK_OFFSET;
+    Dev->CardInfo.BootAreaSize      = 0;
+    Dev->HostInfo.IoNum             = AlMmc_Dev_GetIoOffset(Dev);
+    Dev->HostInfo.IoSlewRate        = AL_REG32_GET_BITS(AL_MMC_IOPARA_ADDR(Dev->HostInfo.IoNum),
+                                                        AL_MMC_IO_SLEW_SHIFT, AL_MMC_IO_SLEW_MASK);
+    #endif
+
+    DmaMode = Dev->Config.DmaMode;
+    Dev->Config.DmaMode = AL_MMC_DMA_MODE_NONE;
+
+#ifdef AL_MMC_AUTOTUNING_ENABLE
+MMC_INIT:
+#endif
+    AlMmc_Dev_ClrState(Dev, AL_MMC_STATE_READY);
+
+    /* Clear all state */
+    AlMmc_Dev_ClrState(Dev, AL_MMC_STATE_ALL_MASK);
+
+    /* Init top config register from TD */
+    AlMmc_Dev_TopCfgInit(Dev);
+
+    /* Get host controller supported function */
+    AlMmc_Dev_GetHostInfo(Dev);
+
+    /* Set up host controller */
+    AlMmc_Dev_SetUpHostController(Dev);
+
+    /* Set host version */
+    AlMmc_Dev_SetHostVer(Dev);
+
+    /* Set intr state en and intr signal en(if USE_RTOS) */
+    AlMmc_ll_WriteIntrStatEn(Dev->HwConfig.BaseAddress, 0xFFFFFEFF);
+    // AlMmc_ll_WriteIntrSigEn(Dev->HwConfig.BaseAddress, 0xFFFFFFFF);
+
+    if (Dev->Config.CardType >= AL_MMC_CARD_TYPE_MAX) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Invalid card type\r\n");
+        return AL_MMC_ERR_INVALID_CARD;
+    } else if (Dev->Config.CardType == AL_MMC_CARD_TYPE_AUTO_DETECT) {
+        /* Identify detected card is SD or eMMC */
+        Ret = AlMmc_Dev_IdentifyCard(Dev);
+        if (Ret != AL_OK) {
+            AL_LOG(AL_LOG_LEVEL_ERROR, "Identify Card failed: 0x%x\r\n", Ret);
+            return Ret;
+        }
+        AL_LOG(AL_LOG_LEVEL_INFO, "Identify Card: %s\r\n",
+                (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) ? "SD" : "eMMC");
+        Dev->Config.CardType = Dev->CardInfo.CardType;
+    } else {
+        Dev->CardInfo.CardType = Dev->Config.CardType;
+    }
+
+    if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+        Ret = AlMmc_Dev_SdCardInit(Dev);
+    } else if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_EMMC) {
+        Ret = AlMmc_Dev_EmmcCardInit(Dev);
+    } else {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Unsupport card\r\n");
+        return AL_MMC_ERR_INVALID_CARD;
+    }
+
+    if (Ret != AL_OK) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Card %s Init error, err code 0x%x\r\n",
+               (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) ? "SD" : "eMMC", Ret);
+        #ifdef AL_MMC_AUTOTUNING_ENABLE
+        if (Ret == AL_MMC_ERR_TUNING_FAIL) {
+            HwConfig->PhaseOffset = Dev->HwConfig.PhaseOffset;
+            memcpy(HwConfig->PhaseVal, Dev->HwConfig.PhaseVal, sizeof(HwConfig->PhaseVal));
+            goto MMC_INIT;
+        }
+        #endif
+        return Ret;
+    }
+
+    Dev->Config.DmaMode = DmaMode;
+    if (Dev->Config.DmaMode != AL_MMC_DMA_MODE_NONE) {
+        AL_MMC_CtrlWuBgPwHc1Union Ctrl1;
+        Ctrl1.Reg = AlMmc_ll_ReadCtrl_Wup_Bgap_Pwr_Host1(Dev->HwConfig.BaseAddress);
+        Ctrl1.Bit.DmaSel = Dev->Config.DmaMode;
+        AlMmc_ll_WriteCtrl_Wup_Bgap_Pwr_Host1(Dev->HwConfig.BaseAddress, Ctrl1.Reg);
+        if (Dev->Config.DmaMode != AL_MMC_DMA_MODE_NONE) {
+            /* Set dma buffer boundary */
+            AlMmc_ll_SetSdmaBufBdary(Dev->HwConfig.BaseAddress, Dev->Config.DmaBdary);
+        }
+    }
+
+    /* Set host version */
+    AlMmc_Dev_SetHostVer(Dev);
+
+    AlMmc_Dev_DisplayCardInfo(Dev);
+    AlMmc_Dev_SetState(Dev, AL_MMC_STATE_READY);
+
+    return Ret;
+}
+
+/**
+ *
+ * This function registers a callback function that will be called on MMC events. If a callback is already
+ * registered, it will be replaced with the new one.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param CallBack The callback function to register.
+ * @param CallBackRef User-defined reference that will be passed to the callback function.
+ * @return AL_OK if successful.
+ */
+AL_S32 AlMmc_Dev_RegisterEventCallBack(AL_MMC_DevStruct *Dev, AL_MMC_EventCallBack CallBack, AL_VOID *CallBackRef)
+{
+    AL_ASSERT((Dev != AL_NULL) && (CallBack != AL_NULL), AL_MMC_ERR_NULL_PTR);
+
+    if (Dev->EventCallBack != AL_NULL) {
+        AL_LOG(AL_LOG_LEVEL_WARNING, "mmc=%p duplicate register callback: replace old:%p with New: %p\r\n",
+               Dev, Dev->EventCallBack, CallBack);
+    }
+
+    Dev->EventCallBack = CallBack;
+    Dev->EventCallBackRef  = CallBackRef;
+
+    return AL_OK;
+}
+
+/**
+ *
+ * This function unregisters the currently registered event callback function, if any.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return AL_OK if successful.
+ */
+AL_S32 AlMmc_Dev_UnRegisterEventCallBack(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    Dev->EventCallBack = (AL_MMC_EventCallBack)AL_NULL;
+
+    return AL_OK;
+}
+
+/**
+ * This function iterates through the array of hardware configurations to find a match for the specified device ID.
+ * If a match is found, a pointer to the hardware configuration structure is returned.
+ *
+ * @param DeviceId The unique identifier for the MMC device.
+ * @return A pointer to the hardware configuration structure if a match is found; otherwise, NULL.
+ */
+AL_MMC_HwConfigStruct *AlMmc_Dev_LookupConfig(AL_U32 DeviceId)
+{
+    AL_U32 Index;
+    AL_MMC_HwConfigStruct *CfgPtr = AL_NULL;
+
+    for (Index = 0; Index < AL_MMC_NUM_INSTANCE; Index++) {
+        if (AlMmc_HwConfig[Index].DeviceId == DeviceId) {
+            CfgPtr = &AlMmc_HwConfig[Index];
+            break;
+        }
+    }
+
+    return CfgPtr;
+}
+
+/**
+ * This function performs necessary preparations for data transfer with the MMC device, such as checking if the card is inserted and if the block size is set.
+ *
+ * @param Dev A pointer to the MMC device structure.
+ * @return AL_OK if the configuration is successful; otherwise, an error code.
+ */
+static AL_S32 AlMmc_Dev_TransferConfig(AL_MMC_DevStruct *Dev)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    /* TODO: Check is card inserted and blk size if set */
+
+    return Ret;
+}
+
+/**
+ * This function prepares the ADMA2 descriptor table based on the buffer and block count provided. It calculates the total number of descriptors needed and configures each descriptor accordingly.
+ *
+ * @param Dev A pointer to the MMC device structure.
+ * @param Buf A pointer to the data buffer for transfer.
+ * @param BlkCnt The number of blocks to transfer.
+ * @return AL_OK if the setup is successful; otherwise, an error code.
+ */
+static AL_S32 AlMmc_Dev_SetUpAdma2DescTable(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_MMC_AdmaDescUnion *Desc = &Dev->AdmaDesc[0];
+    AL_U32 TotalDescSize = 0;
+    AL_U32 BlkLen = Dev->CardInfo.BlkLen;
+    AL_U32 TotalByteSize = BlkLen * BlkCnt;
+    AL_U32 DataLen = 0;
+    AL_U32 Start = (AL_U32)(AL_UINTPTR)Buf;
+    AL_U32 End = Start + TotalByteSize;
+    AL_U32 DescMaxLength;
+    AL_U32 DescLengthSizeLo;
+
+    if (Dev->HostInfo.HostVer == AL_MMC_HOST_VER_4) {
+        DescMaxLength       = AL_MMC_ADMA2_DESC_26BIT_LENGTH;
+        DescLengthSizeLo    = AL_MMC_ADMA2_26BIT_LENGTH_SIZE_LO;
+    } else {
+        DescMaxLength       = AL_MMC_ADMA2_DESC_16BIT_LENGTH;
+        DescLengthSizeLo    = AL_MMC_ADMA2_16BIT_LENGTH_SIZE_LO;
+    }
+
+    do {
+        Desc = &Dev->AdmaDesc[TotalDescSize];
+        Desc->Bit.AddrArgPtr    = (AL_U32)Start;
+        Desc->Bit.Valid         = AL_TRUE;
+        // Desc->Bit.Int           = AL_TRUE;
+        Desc->Bit.Act           = AL_MMC_ADMA_ACT_TRANS;
+
+        if ((Start ^ End) > AL_MMC_128M_BDARY_MASK) {
+            DataLen = AL_MMC_CEIL(AL_MMC_CEIL(Start, AL_MMC_128M_BDARY_MASK) - Start, (BlkLen - 1));
+            if (DataLen > DescMaxLength) {
+                DataLen = (DescMaxLength - (BlkLen - 1));
+            }
+            Desc->Bit.End       = AL_FALSE;
+            Desc->Bit.LowerLen  = (DataLen & ((1 << DescLengthSizeLo) - 1));
+            Desc->Bit.UpperLen  = ((DataLen & DescMaxLength) >> DescLengthSizeLo);
+            TotalByteSize -= DataLen;
+            Start += DataLen;
+        } else {
+            if (TotalByteSize <= DescMaxLength) {
+                DataLen = TotalByteSize;
+                Desc->Bit.End       = AL_TRUE;
+            } else {
+                DataLen = (DescMaxLength - (BlkLen - 1));
+                Desc->Bit.End       = AL_FALSE;
+            }
+            Desc->Bit.LowerLen  = (DataLen & ((1 << DescLengthSizeLo) - 1));
+            Desc->Bit.UpperLen  = ((DataLen & DescMaxLength) >> DescLengthSizeLo);
+            TotalByteSize -= DataLen;
+            Start += DataLen;
+        }
+        TotalDescSize++;
+    } while (TotalByteSize > 0);
+
+    AlCache_FlushDcacheRange((AL_UINTPTR)Desc, (AL_UINTPTR)(Desc + sizeof(AL_MMC_AdmaDescUnion) * AL_MMC_ADMA_TABLE_SIZE));
+    AlMmc_Dev_DisplayAdmaDesc(&Dev->AdmaDesc[0], TotalDescSize);
+
+    return Ret;
+}
+
+/**
+ * This function sets up the DMA mode based on the device configuration. It supports different DMA modes such as SDMA, ADMA2, and ADMA3. For ADMA2, it also handles the setup of the descriptor table.
+ *
+ * @param Dev A pointer to the MMC device structure.
+ * @param Buf A pointer to the data buffer for transfer.
+ * @param BlkCnt The number of blocks to transfer.
+ * @return AL_OK if the DMA setup is successful; otherwise, an error code.
+ */
+static AL_S32 AlMmc_Dev_DmaSetUp(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    /* Attention: Block cnt move to cmd config */
+    switch (Dev->Config.DmaMode)
+    {
+    case AL_MMC_DMA_MODE_NONE:
+        break;
+    case AL_MMC_DMA_MODE_SDMA:
+        if (Dev->HostInfo.HostVer == AL_MMC_HOST_VER_3) {
+            AlMmc_ll_WriteBlkCnt_SdmaSysAddr(Dev->HwConfig.BaseAddress, (AL_U32)(AL_UINTPTR)Buf);
+        } else {
+            AlMmc_ll_WriteAdmaSysAddrLow(Dev->HwConfig.BaseAddress, (AL_U32)(AL_UINTPTR)Buf);
+        }
+        break;
+    case AL_MMC_DMA_MODE_ADMA2:
+        if (Dev->Config.AutoGenAdmaTblEn) {
+            Ret = AlMmc_Dev_SetUpAdma2DescTable(Dev, Buf, BlkCnt);
+            if (Ret != AL_OK) {
+                return Ret;
+            }
+            AlMmc_ll_WriteAdmaSysAddrLow(Dev->HwConfig.BaseAddress, (AL_U32)(AL_UINTPTR)&Dev->AdmaDesc[0]);
+        } else {
+            #ifdef ENABLE_MMU
+            /* TODO: need check every desc and flush write or invalidate read memory range here */
+            #endif
+            AlMmc_ll_WriteAdmaSysAddrLow(Dev->HwConfig.BaseAddress, (AL_U32)(AL_UINTPTR)Buf);
+        }
+        break;
+    case AL_MMC_DMA_MODE_ADMA3:
+        AlMmc_ll_WriteAdmaIdLow(Dev->HwConfig.BaseAddress, (AL_U32)(AL_UINTPTR)Buf);
+        break;
+    default:
+        break;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function monitors the transfer status and errors through the interrupt status register. It handles different scenarios such as DMA interrupts and transfer completion.
+ *
+ * @param Dev A pointer to the MMC device structure.
+ * @param BlkCnt The number of blocks that were supposed to be transferred.
+ * @return AL_OK if the transfer is successfully completed; AL_MMC_ERR_XFER_COMP_TIMEOUT if the transfer times out; otherwise, an error code based on the type of error encountered.
+ */
+static AL_S32 AlMmc_Dev_CheckTransferDone(AL_MMC_DevStruct *Dev, AL_U32 BlkCnt)
+{
+    AL_S32 Ret = AL_OK;
+    volatile AL_MMC_IntrUnion IntrStat   = {0};
+    /* Set Max for large blk cnt transfer */
+    AL_U32 Timeout = AL_MMC_CHK_TOUT_XFER_DONE * BlkCnt;
+
+    do {
+        IntrStat.Reg = AlMmc_ll_ReadIntrStat(Dev->HwConfig.BaseAddress);
+
+
+        if (IntrStat.Reg != 0)
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "Transfer state: 0x%x\r\n", IntrStat.Reg);
+
+        if (IntrStat.Bit.ErrIntr) {
+            if (IntrStat.Bit.AdmaErr && ((Dev->Config.DmaMode == AL_MMC_DMA_MODE_SDMA) ||
+                                         (Dev->Config.DmaMode == AL_MMC_DMA_MODE_ADMA2) ||
+                                         (Dev->Config.DmaMode == AL_MMC_DMA_MODE_ADMA3))) {
+                /* TODO: ADMA abort operation */
+                AL_LOG(AL_LOG_LEVEL_ERROR, "Adma error\r\n");
+            }
+
+            return AlMmc_Dev_CheckErrStat(Dev, IntrStat);
+        }
+
+        if ((AlMmc_Dev_GetState(Dev, AL_MMC_STATE_READY)) && (Dev->Config.DmaMode == AL_MMC_DMA_MODE_SDMA) &&
+            IntrStat.Bit.DmaIntr && (!IntrStat.Bit.XferComp)) {
+            volatile AL_U32 SdmaAddr = AlMmc_ll_ReadAdmaSysAddrLow(Dev->HwConfig.BaseAddress);
+            IntrStat.Reg = 0;
+            IntrStat.Bit.DmaIntr = AL_TRUE;
+            AlMmc_ll_WriteIntrStat(Dev->HwConfig.BaseAddress, IntrStat.Reg);
+
+            if (!(SdmaAddr & AL_MMC_128M_BDARY_MASK)) {
+                AL_LOG(AL_LOG_LEVEL_DEBUG, "Sdma 128MB boundary\r\n");
+                SdmaAddr += AL_MMC_128M_BDARY_SIZE; // add 128MB to next 128MB block
+            }
+
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "Sdma intr Addr: 0x%x\r\n", SdmaAddr);
+
+            AlMmc_ll_WriteAdmaSysAddrLow(Dev->HwConfig.BaseAddress, SdmaAddr);
+        }
+
+        AL_MMC_LOOP_REG_DELAY;
+        Timeout--;
+    } while ((!IntrStat.Bit.XferComp) && Timeout);
+
+    if (!Timeout) {
+        return AL_MMC_ERR_XFER_COMP_TIMEOUT;
+    }
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Cur timeout: %d\r\n", Timeout);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Transfer done state: 0x%x\r\n", IntrStat.Reg);
+
+    IntrStat.Reg            = 0;
+    IntrStat.Bit.XferComp   = AL_TRUE;
+    IntrStat.Bit.DmaIntr    = AL_TRUE;
+    AlMmc_ll_WriteIntrStat(Dev->HwConfig.BaseAddress, IntrStat.Reg);
+
+    return Ret;
+}
+
+/**
+ * This function handles the actual data transfer between the host and the MMC device. It reads from or writes data to the device
+ * based on the direction specified in the host information. The data transfer is done in blocks, where each block size is defined
+ * by the MMC card's block length. The function iterates over the data, transferring one word at a time.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Mem Pointer to the memory where data will be read from or written to.
+ * @return void
+ */
+static AL_VOID AlMmc_Dev_CarryBlkData(AL_MMC_DevStruct *Dev, AL_U8 *Mem)
+{
+    AL_U32 WordBlkLen = Dev->CardInfo.BlkLen >> 2;
+    AL_U32 *Addr = (AL_U32 *)Mem;
+
+    if (Dev->HostInfo.Dir == AL_MMC_TRANS_DIR_WRITE) {
+        for (AL_U32 i = 0; i < WordBlkLen; i++) {
+            AlMmc_ll_WriteBufferData(Dev->HwConfig.BaseAddress, *Addr);
+            Addr++;
+        }
+    } else {
+        for (AL_U32 i = 0; i < WordBlkLen; i++) {
+            *Addr = AlMmc_ll_ReadBufferData(Dev->HwConfig.BaseAddress);
+            Addr++;
+        }
+    }
+}
+
+/**
+ * This function manages the transfer of data blocks between the host and the MMC device without utilizing Direct Memory Access (DMA).
+ * It repeatedly checks the interrupt status to determine when the device is ready for data transfer and handles any errors that occur.
+ * The function supports both read and write operations and ensures that the correct number of blocks are transferred.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Buf Pointer to the buffer where data will be stored or retrieved from.
+ * @param BlkCnt Number of blocks to transfer.
+ * @return AL_S32 Returns AL_OK on success or an error code on failure.
+ */
+static AL_S32 AlMmc_Dev_TransferNoDma(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    volatile AL_MMC_IntrUnion IntrStat   = {0};
+    volatile AL_MMC_CurStatUnion CurStat = {0};
+    AL_U32 Timeout = AL_MMC_CHK_TOUT_XFER_NO_DMA;
+    AL_U8 *MemAddr = Buf;
+    AL_BOOL Done = AL_FALSE;
+    AL_U32 Cnt = 0;
+
+    do {
+        IntrStat.Reg = AlMmc_ll_ReadIntrStat(Dev->HwConfig.BaseAddress);
+
+        if (IntrStat.Reg) {
+            AL_LOG(AL_LOG_LEVEL_DEBUG, "No dma state 0x%x\r\n", IntrStat.Reg);
+        }
+
+        if (IntrStat.Bit.ErrIntr) {
+            return AlMmc_Dev_CheckErrStat(Dev, IntrStat);
+        }
+
+        if (!Done && (IntrStat.Bit.BuffRdRdy || IntrStat.Bit.BuffWrRdy)) {
+            CurStat.Reg = AlMmc_ll_ReadCurState(Dev->HwConfig.BaseAddress);
+            if (!(CurStat.Bit.BuffRdEn || CurStat.Bit.BuffWrEn)) {
+                continue;
+            }
+            IntrStat.Reg = 0;
+            IntrStat.Bit.BuffRdRdy = AL_TRUE;
+            IntrStat.Bit.BuffWrRdy = AL_TRUE;
+            AlMmc_ll_WriteIntrStat(Dev->HwConfig.BaseAddress, IntrStat.Reg);
+
+            AlMmc_Dev_CarryBlkData(Dev, MemAddr);
+
+            #ifdef AL_MMC_AUTOTUNING_ENABLE
+            if (!AlMmc_Dev_GetState(Dev, AL_MMC_STATE_TUNING))
+            #endif
+                MemAddr += Dev->CardInfo.BlkLen;
+
+            Timeout = AL_MMC_CHK_TOUT_XFER_NO_DMA;
+            if (++Cnt >= BlkCnt) {
+                Done = AL_TRUE;
+                continue;
+            }
+        }
+
+        AL_MMC_LOOP_REG_DELAY;
+    } while ((!IntrStat.Bit.XferComp) && (--Timeout));
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "No dma blk cnt %d, mem addr  %p\r\n", Cnt, MemAddr);
+    if (!Timeout) {
+        return AL_MMC_ERR_XFER_COMP_TIMEOUT;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function is responsible for initiating and managing the transfer of data blocks between the host and the MMC device.
+ * It decides whether to use DMA for the transfer based on the device configuration and handles any errors that occur during the transfer.
+ * The function supports both read and write operations.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Buf Pointer to the buffer where data will be stored or retrieved from.
+ * @param BlkCnt Number of blocks to transfer.
+ * @return AL_S32 Returns AL_OK on success or an error code on failure.
+ */
+static AL_S32 AlMmc_Dev_TransferData(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    if ((Dev->Config.DmaMode == AL_MMC_DMA_MODE_NONE) || (!AlMmc_Dev_GetState(Dev, AL_MMC_STATE_READY))) {
+        Ret = AlMmc_Dev_TransferNoDma(Dev, Buf, BlkCnt);
+        if (Ret != AL_OK) {
+            AL_LOG(AL_LOG_LEVEL_ERROR, "Transfer no dma error\r\n");
+            return Ret;
+        }
+    }
+
+    Ret = AlMmc_Dev_CheckTransferDone(Dev, BlkCnt);
+    if (Ret != AL_OK) {
+        AL_LOG(AL_LOG_LEVEL_ERROR, "Check transfer done error, size: %d\r\n", BlkCnt);
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function initiates a write operation to transfer data blocks from the host to the MMC device. It sets up the device state,
+ * prepares the command to be sent, and handles the data transfer, either using DMA or manually, depending on the device configuration.
+ * The function also takes care of block addressing for different card types and capacities.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Buf Pointer to the buffer containing the data to be written.
+ * @param Arg The start block address or the write command argument.
+ * @param BlkCnt Number of blocks to write.
+ * @return AL_S32 Returns AL_OK on success or an error code on failure.
+ */
+AL_S32 AlMmc_Dev_WriteData(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 Arg, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    if (!AlMmc_Dev_GetState(Dev, AL_MMC_STATE_READY)) {
+        return AL_MMC_ERR_STATE_NOT_READY;
+    }
+
+    if (AlMmc_Dev_GetState(Dev, AL_MMC_STATE_READ_BUSY | AL_MMC_STATE_WRITE_BUSY)) {
+        return AL_MMC_ERR_TRANS_BUSY;
+    }
+
+    AlMmc_Dev_SetState(Dev, AL_MMC_STATE_WRITE_BUSY);
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_16, Dev->CardInfo.BlkLen, 0);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_DmaSetUp(Dev, Buf, BlkCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    if (Dev->Config.AutoGenAdmaTblEn || Dev->Config.DmaMode != AL_MMC_DMA_MODE_ADMA2) {
+        AlCache_FlushDcacheRange((AL_UINTPTR)Buf, (AL_UINTPTR)(Buf + BlkCnt * Dev->CardInfo.BlkLen));
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "Flush start: 0x%lx, end: 0x%lx\r\n",
+               (AL_UINTPTR)Buf, (AL_UINTPTR)(Buf + BlkCnt * Dev->CardInfo.BlkLen));
+    }
+
+    if ((Dev->CardInfo.HiCap == AL_FALSE) && (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD)) {
+        Arg *= AL_MMC_BLK_LEN_512B;
+    }
+
+    if (BlkCnt > 1) {
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_25, Arg, BlkCnt);
+    } else {
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_24, Arg, BlkCnt);
+    }
+
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_TransferData(Dev, Buf, BlkCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    if (Dev->HostInfo.HostVer == AL_MMC_HOST_VER_3 && BlkCnt > 1) {
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_12, 0, 0);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    }
+
+    AlMmc_Dev_ClrState(Dev, AL_MMC_STATE_WRITE_BUSY);
+
+    return Ret;
+}
+
+/**
+ * This function initiates a write operation to transfer data bytes from the host to the MMC device. It sets up the device state,
+ * prepares the command to be sent, and handles the data transfer, either using DMA or manually, depending on the device configuration.
+ * The function also takes care of block addressing for different card types and capacities.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Buf Pointer to the buffer containing the data to be written.
+ * @param ByteOffset The start byte address or the write command argument.
+ * @param ByteCnt Number of bytes to write.
+ * @return AL_S32 Returns AL_OK on success or an error code on failure.
+ */
+AL_S32 AlMmc_Dev_WriteByte(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U64 ByteOffset, AL_U64 ByteCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_U8 Buffer[AL_MMC_BLK_LEN_512B] = {0};
+    AL_U32 Offset, Remain, Blk, BlkOffset, BufOffset, BlkCnt;
+
+    Blk = ByteOffset / AL_MMC_BLK_LEN_512B;     // First block offset
+    Offset = ByteOffset % AL_MMC_BLK_LEN_512B;  // First block byte offset
+    BlkOffset = (Offset != 0) ? 1 : 0;          // First block not align? Mid + 1
+    BufOffset = (Offset != 0) ? (AL_MMC_BLK_LEN_512B - Offset) : 0; // First block not align? Buf offset
+    Remain = (ByteCnt - (AL_MMC_BLK_LEN_512B - Offset)) % AL_MMC_BLK_LEN_512B;  // Last block remain
+    BlkCnt = (ByteOffset + ByteCnt) / AL_MMC_BLK_LEN_512B - Blk;    // Mid whole block cnt
+
+    if (Offset) {
+        Ret = AlMmc_Dev_ReadData(Dev, Buffer, Blk, 1);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+        memcpy(&Buffer[Offset], Buf, AL_MMC_BLK_LEN_512B - Offset);
+        Ret = AlMmc_Dev_WriteData(Dev, Buffer, Blk, 1);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    }
+
+    if (BlkCnt) {
+        Ret = AlMmc_Dev_WriteData(Dev, &Buf[BufOffset], Blk + BlkOffset, BlkCnt);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    }
+
+    if (Remain) {
+        Ret = AlMmc_Dev_ReadData(Dev, Buffer, Blk + BlkCnt + BlkOffset, 1);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+        memcpy(Buffer, &Buf[ByteCnt - Remain], Remain);
+        Ret = AlMmc_Dev_WriteData(Dev, Buffer, Blk + BlkCnt + BlkOffset, 1);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    }
+
+    return Ret;
+}
+
+/**
+ * This function is the external interface for writing data to the MMC device. It performs initial checks on the buffer alignment,
+ * configures the data transfer, and then calls the internal function to handle the actual data write. It supports writing multiple
+ * blocks of data and handles different device configurations and states to ensure a successful write operation.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Buf Pointer to the buffer containing the data to be written.
+ * @param BlkOffset The block offset where writing should start.
+ * @param BlkCnt Number of blocks to write.
+ * @return AL_S32 Returns AL_OK on success or an error code on failure.
+ */
+/* When ADMA2 mode and auto gen desc is false, buf is pointer of desc list */
+AL_S32 AlMmc_Dev_Write(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 BlkOffset, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Write addr: %p, Offset: %d, BlkCnt = %d\r\n", Buf, BlkOffset, BlkCnt);
+
+    Ret = AlMmc_Dev_TransferConfig(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_WriteData(Dev, Buf, BlkOffset, BlkCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+/**
+ * This function initiates a read operation to transfer data blocks from the MMC device to the host. It sets up the device state,
+ * prepares the command to be sent, and handles the data transfer, either using DMA or manually, depending on the device configuration.
+ * The function also takes care of block addressing for different card types and capacities and ensures data coherency by invalidating
+ * the cache if necessary.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Buf Pointer to the buffer where the read data will be stored.
+ * @param Arg The start block address or the read command argument.
+ * @param BlkCnt Number of blocks to read.
+ * @return AL_S32 Returns AL_OK on success or an error code on failure.
+ */
+AL_S32 AlMmc_Dev_ReadData(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 Arg, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    if (!AlMmc_Dev_GetState(Dev, AL_MMC_STATE_READY)) {
+        return AL_MMC_ERR_STATE_NOT_READY;
+    }
+
+    if (AlMmc_Dev_GetState(Dev, AL_MMC_STATE_READ_BUSY | AL_MMC_STATE_WRITE_BUSY)) {
+        return AL_MMC_ERR_TRANS_BUSY;
+    }
+
+    AlMmc_Dev_SetState(Dev, AL_MMC_STATE_READ_BUSY);
+
+    Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_16, Dev->CardInfo.BlkLen, 0);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_DmaSetUp(Dev, Buf, BlkCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    if (Dev->Config.AutoGenAdmaTblEn || Dev->Config.DmaMode != AL_MMC_DMA_MODE_ADMA2) {
+        AlCache_InvalidateDcacheRange((AL_UINTPTR)Buf, (AL_UINTPTR)(Buf + BlkCnt * Dev->CardInfo.BlkLen));
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "Invalidate start: 0x%lx, end: 0x%lx\r\n",
+               (AL_UINTPTR)Buf, (AL_UINTPTR)(Buf + BlkCnt * Dev->CardInfo.BlkLen));
+    }
+
+    if ((Dev->CardInfo.HiCap == AL_FALSE) && (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD)) {
+        Arg *= AL_MMC_BLK_LEN_512B;
+    }
+
+    if (BlkCnt > 1) {
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_18, Arg, BlkCnt);
+    } else {
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_17, Arg, BlkCnt);
+    }
+
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_TransferData(Dev, Buf, BlkCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    if (Dev->HostInfo.HostVer == AL_MMC_HOST_VER_3 && BlkCnt > 1) {
+        Ret = AlMmc_Dev_CmdTransfer(Dev, AL_MMC_CMD_IDX_12, 0, 0);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    }
+
+    AlMmc_Dev_ClrState(Dev, AL_MMC_STATE_READ_BUSY);
+
+    return Ret;
+}
+
+/**
+ * This function initiates a read operation to transfer data bytes from the MMC device to the host. It sets up the device state,
+ * prepares the command to be sent, and handles the data transfer, either using DMA or manually, depending on the device configuration.
+ * The function also takes care of byte addressing for different card types and capacities and ensures data coherency by invalidating
+ * the cache if necessary.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Buf Pointer to the buffer where the read data will be stored.
+ * @param ByteOffset The start byte address or the read command argument.
+ * @param ByteCnt Number of bytes to read.
+ * @return AL_S32 Returns AL_OK on success or an error code on failure.
+ */
+AL_S32 AlMmc_Dev_ReadByte(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U64 ByteOffset, AL_U64 ByteCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_U8 Buffer[AL_MMC_BLK_LEN_512B] = {0};
+    AL_U32 Offset, Remain, Blk, BlkOffset, BufOffset, BlkCnt;
+
+    Blk = ByteOffset / AL_MMC_BLK_LEN_512B;     // First block offset
+    Offset = ByteOffset % AL_MMC_BLK_LEN_512B;  // First block byte offset
+    BlkOffset = (Offset != 0) ? 1 : 0;          // First block not align? Mid + 1
+    BufOffset = (Offset != 0) ? (AL_MMC_BLK_LEN_512B - Offset) : 0; // First block not align? Buf offset
+    Remain = (ByteCnt - (AL_MMC_BLK_LEN_512B - Offset)) % AL_MMC_BLK_LEN_512B;  // Last block remain
+    BlkCnt = (ByteOffset + ByteCnt) / AL_MMC_BLK_LEN_512B - Blk;    // Mid whole block cnt
+
+    if (Offset) {
+        Ret = AlMmc_Dev_ReadData(Dev, Buffer, Blk, 1);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+        memcpy(Buf, &Buffer[Offset], AL_MMC_BLK_LEN_512B - Offset);
+    }
+
+    if (BlkCnt) {
+        Ret = AlMmc_Dev_ReadData(Dev, &Buf[BufOffset], Blk + BlkOffset, BlkCnt);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+    }
+
+    if (Remain) {
+        Ret = AlMmc_Dev_ReadData(Dev, Buffer, Blk + BlkCnt + BlkOffset, 1);
+        if (Ret != AL_OK) {
+            return Ret;
+        }
+        memcpy(&Buf[ByteCnt - Remain], Buffer, Remain);
+    }
+
+    return Ret;
+}
+
+/**
+ *
+ * This function reads a specified number of blocks from a given block offset into the provided buffer.
+ * It first ensures that the device and buffer pointers are not null and that the buffer is properly aligned.
+ * It then configures the device for transfer and attempts to read the data. If any step fails, the error
+ * code is returned immediately.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Buf Pointer to the buffer where the read data will be stored.
+ * @param BlkOffset The block offset from where to start reading.
+ * @param BlkCnt The number of blocks to read.
+ * @return AL_S32 Returns AL_OK on success, or an error code on failure.
+ */
+/* When ADMA2 mode and auto gen desc is false, buf is pointer of desc list */
+AL_S32 AlMmc_Dev_Read(AL_MMC_DevStruct *Dev, AL_U8 *Buf, AL_U32 BlkOffset, AL_U32 BlkCnt)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "Read addr: %p, Offset: 0x%x, BlkCnt = %d\r\n", Buf, BlkOffset, BlkCnt);
+
+    Ret = AlMmc_Dev_TransferConfig(Dev);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_ReadData(Dev, Buf, BlkOffset, BlkCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    return Ret;
+}
+
+AL_S32 AlMmc_Dev_Adma3Trans(AL_MMC_DevStruct *Dev, AL_U8 *Buf)
+{
+    AL_ASSERT(Dev != AL_NULL, AL_MMC_ERR_NULL_PTR);
+
+    AL_S32 Ret = AL_OK;
+    AL_U32 BlockCnt = 10;
+
+    if (!AlMmc_Dev_GetState(Dev, AL_MMC_STATE_READY)) {
+        return AL_MMC_ERR_STATE_NOT_READY;
+    }
+
+    if (AlMmc_Dev_GetState(Dev, AL_MMC_STATE_READ_BUSY | AL_MMC_STATE_WRITE_BUSY)) {
+        return AL_MMC_ERR_TRANS_BUSY;
+    }
+
+    AlMmc_Dev_SetState(Dev, AL_MMC_STATE_READ_BUSY);
+
+    Ret = AlMmc_Dev_DmaSetUp(Dev, Buf, BlockCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    Ret = AlMmc_Dev_TransferData(Dev, Buf, BlockCnt);
+    if (Ret != AL_OK) {
+        return Ret;
+    }
+
+    AlMmc_Dev_ClrState(Dev, AL_MMC_STATE_READ_BUSY);
+
+    return Ret;
+}
+
+/**
+ *
+ * This function is the interrupt handler for the MMC device. It reads the interrupt signal enable and
+ * interrupt status registers to determine the cause of the interrupt. Based on the cause, it then
+ * performs the appropriate action. Currently, the actions for different interrupts are not implemented
+ * and are marked as TODO.
+ *
+ * @param Instance Pointer to the MMC device instance.
+ */
+AL_VOID AlMmc_Dev_IntrHandler(void *Instance)
+{
+    AL_MMC_DevStruct *Dev = Instance;
+    AL_U32 IntrSigEn = AlMmc_ll_ReadIntrSigEn(Dev->HwConfig.BaseAddress);
+    AL_U32 IntrState = AlMmc_ll_ReadIntrStat(Dev->HwConfig.BaseAddress);
+
+    /* TODO: support after osal interface done */
+    if (AL_MMC_CMD_COMP_INTR(IntrSigEn & IntrState)) {
+
+    }
+
+    if (AL_MMC_XFER_COMP_INTR(IntrSigEn & IntrState)) {
+
+    }
+
+    if (AL_MMC_DMA_INTR(IntrSigEn & IntrState)) {
+
+    }
+
+    if (AL_MMC_CARD_INTR(IntrSigEn & IntrState)) {
+
+    }
+
+    if (AL_MMC_ERR_INTR(IntrSigEn & IntrState)) {
+
+    }
+}
+
+/**
+ *
+ * This function is intended to perform various control operations on the MMC device. The actual
+ * operations are determined by the IOCTL command passed to the function. Currently, this function
+ * does not implement any specific commands and always returns AL_OK.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @param Cmd The IOCTL command to perform.
+ * @param Data Pointer to the data required for the command, if any.
+ * @return AL_S32 Returns AL_OK on success, or an error code on failure.
+ */
+AL_S32 AlMmc_Dev_IoCtl(AL_MMC_DevStruct *Dev, AL_MMC_IoCtlCmdEnum Cmd, AL_VOID *Data)
+{
+    return AL_OK;
+}
+
+/**
+ *
+ * This function updates the IO clock frequency setting for a specified MMC device. The new frequency
+ * is set in the device's hardware configuration structure.
+ *
+ * @param DevId The ID of the MMC device whose IO clock is to be modified.
+ * @param ClkInHz The new IO clock frequency in Hertz.
+ */
+AL_VOID AlMmc_Dev_ModifyIoClk(AL_U32 DevId, AL_U32 ClkInHz)
+{
+    AlMmc_HwConfig[DevId].IoClk = ClkInHz;
+}
+
+/**
+ *
+ * This function logs the contents of the CSD register for a given MMC device. The CSD register
+ * contains information about the card's characteristics, such as speed, size, and other parameters.
+ * The function logs various fields of the CSD register for debugging purposes.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ */
+static AL_VOID AlMmc_Dev_DisplayCsd(AL_MMC_DevStruct *Dev)
+{
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "-----CSD-----\r\n");
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Rsvd0: %d\r\n", Dev->CardInfo.Csd.SdV1.Rsvd0);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Crc: %d\r\n", Dev->CardInfo.Csd.SdV1.Crc);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Rsvd9_8: %d\r\n", Dev->CardInfo.Csd.SdV1.Rsvd9_8);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-FileFormat: %d\r\n", Dev->CardInfo.Csd.SdV1.FileFormat);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-TmpWrProt: %d\r\n", Dev->CardInfo.Csd.SdV1.TmpWrProt);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-PermWrProt: %d\r\n", Dev->CardInfo.Csd.SdV1.PermWrProt);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-CpyFlag: %d\r\n", Dev->CardInfo.Csd.SdV1.CpyFlag);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-FileFormatGrp: %d\r\n", Dev->CardInfo.Csd.SdV1.FileFormatGrp);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Rsvd20_16: %d\r\n", Dev->CardInfo.Csd.SdV1.Rsvd20_16);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-WrBlkPartial: %d\r\n", Dev->CardInfo.Csd.SdV1.WrBlkPartial);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-WrBlkLen: %d\r\n", Dev->CardInfo.Csd.SdV1.WrBlkLen);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-WrSpdFactor: %d\r\n", Dev->CardInfo.Csd.SdV1.WrSpdFactor);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Rsvd30_29: %d\r\n", Dev->CardInfo.Csd.SdV1.Rsvd30_29);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-WrProtGrpEn: %d\r\n", Dev->CardInfo.Csd.SdV1.WrProtGrpEn);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-WrProtGrpSize: %d\r\n", Dev->CardInfo.Csd.SdV1.WrProtGrpSize);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-EraseSectorSize: %d\r\n", Dev->CardInfo.Csd.SdV1.EraseSectorSize);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-EraseBlkEn: %d\r\n", Dev->CardInfo.Csd.SdV1.EraseBlkEn);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-DevSizeMulti: %d\r\n", Dev->CardInfo.Csd.SdV1.DevSizeMulti);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-VddWrCurMax: %d\r\n", Dev->CardInfo.Csd.SdV1.VddWrCurMax);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-VddWrCurMin: %d\r\n", Dev->CardInfo.Csd.SdV1.VddWrCurMin);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-VddRdCurMax: %d\r\n", Dev->CardInfo.Csd.SdV1.VddRdCurMax);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-VddRdCurMin: %d\r\n", Dev->CardInfo.Csd.SdV1.VddRdCurMin);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-DevSize63_62: %d\r\n", Dev->CardInfo.Csd.SdV1.DevSize63_62);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-DevSize73_64: %d\r\n", Dev->CardInfo.Csd.SdV1.DevSize73_64);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Rsvd75_74: %d\r\n", Dev->CardInfo.Csd.SdV1.Rsvd75_74);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-DsrImp: %d\r\n", Dev->CardInfo.Csd.SdV1.DsrImp);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-RdBlkMisalign: %d\r\n", Dev->CardInfo.Csd.SdV1.RdBlkMisalign);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-WrBlkMisalign: %d\r\n", Dev->CardInfo.Csd.SdV1.WrBlkMisalign);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-RdBlkPartial: %d\r\n", Dev->CardInfo.Csd.SdV1.RdBlkPartial);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-RdBlkLen: %d\r\n", Dev->CardInfo.Csd.SdV1.RdBlkLen);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-CardCmdClass: %d\r\n", Dev->CardInfo.Csd.SdV1.CardCmdClass);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-TransSpd: %d\r\n", Dev->CardInfo.Csd.SdV1.TransSpd);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Nsac: %d\r\n", Dev->CardInfo.Csd.SdV1.Nsac);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Taac: %d\r\n", Dev->CardInfo.Csd.SdV1.Taac);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Rsvd125_120: %d\r\n", Dev->CardInfo.Csd.SdV1.Rsvd125_120);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-CsdStruct: %d\r\n", Dev->CardInfo.Csd.SdV1.CsdStruct);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "-----CSD-----\r\n");
+}
+
+/**
+ *
+ * This function logs the contents of the CSD register for a given MMC device. The CSD register
+ * contains information about the card's characteristics, such as speed, size, and other parameters.
+ * The function logs various fields of the CSD register for debugging purposes.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ */
+static AL_VOID AlMmc_Dev_DisplayExtCsd(AL_MMC_RegExtCsdUnion *ExtCsd)
+{
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "-----EXT CSD-----\r\n");
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-[173] BootWp: 0x%x\r\n", ExtCsd->Emmc.BootWp);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-[174] BootWpStatus: 0x%x\r\n", ExtCsd->Emmc.BootWpStatus);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-[177] BootBusConditions: 0x%x\r\n", ExtCsd->Emmc.BootBusCond);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-[179] PartitionConfig: 0x%x\r\n", ExtCsd->Emmc.PartitionConfig);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-[185] HsTiming: %d\r\n", ExtCsd->Emmc.HsTiming);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-[196] DevType: 0x%x\r\n", ExtCsd->Emmc.DevType);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-[197] DriverStrength: 0x%x\r\n", ExtCsd->Emmc.DriverStrength);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-[226] BootSizeMult: 0x%x\r\n", ExtCsd->Emmc.BootSizeMult);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-[228] BootInfo: 0x%x\r\n", ExtCsd->Emmc.BootInfo);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "-----EXT CSD-----\r\n");
+}
+
+/**
+ *
+ * This function logs the contents of the SCR register for a given MMC device. The SCR provides
+ * information specific to the SD memory card's physical layer. It includes details such as the SD
+ * specification version supported, data bus widths supported, and security support. This function
+ * is used for debugging and diagnostic purposes.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ */
+static AL_VOID AlMmc_Dev_DisplayScr(AL_MMC_DevStruct *Dev)
+{
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "-----SCR-----\r\n");
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Rsvd31_0: %d\r\n", Dev->CardInfo.Scr.Sd.Rsvd31_0);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-CmdSupport: %d\r\n", Dev->CardInfo.Scr.Sd.CmdSupport);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Rsvd41_36: %d\r\n", Dev->CardInfo.Scr.Sd.Rsvd41_36);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-SdSpec4: %d\r\n", Dev->CardInfo.Scr.Sd.SdSpec4);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-ExSecurity: %d\r\n", Dev->CardInfo.Scr.Sd.ExSecurity);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-SdSpec3: %d\r\n", Dev->CardInfo.Scr.Sd.SdSpec3);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-SdBusWidth: %d\r\n", Dev->CardInfo.Scr.Sd.SdBusWidth);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-SdSecurity: %d\r\n", Dev->CardInfo.Scr.Sd.SdSecurity);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-DatStatAfterErase: %d\r\n", Dev->CardInfo.Scr.Sd.DatStatAfterErase);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-SdSpec: %d\r\n", Dev->CardInfo.Scr.Sd.SdSpec);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-ScrStructure: %d\r\n", Dev->CardInfo.Scr.Sd.ScrStructure);
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "-----SCR-----\r\n");
+}
+
+/**
+ *
+ * This function iterates through the ADMA descriptor table and logs each descriptor's details,
+ * including descriptor values, address argument pointer, length, action, interrupt, end, and validity flags.
+ *
+ * @param TablePtr Pointer to the ADMA descriptor table.
+ * @param Size The number of descriptors in the table.
+ * @return None.
+ */
+static AL_VOID AlMmc_Dev_DisplayAdmaDesc(AL_MMC_AdmaDescUnion *TablePtr, AL_U32 Size)
+{
+    for (AL_U32 i = 0; i < Size; i++) {
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "-----Table[%d]-----\r\n", i);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Desc[0]: 0x%x\r\n", TablePtr[i].Desc[0]);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Desc[1]: 0x%x\r\n", TablePtr[i].Desc[1]);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Addr: 0x%x\r\n", TablePtr[i].Bit.AddrArgPtr);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "|-LowerLen: 0x%x\r\n", TablePtr[i].Bit.LowerLen);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "|-UpperLen: 0x%x\r\n", TablePtr[i].Bit.UpperLen);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Act: 0x%x\r\n", TablePtr[i].Bit.Act);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Int: 0x%x\r\n", TablePtr[i].Bit.Int);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "|-End: 0x%x\r\n", TablePtr[i].Bit.End);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Valid: 0x%x\r\n", TablePtr[i].Bit.Valid);
+        AL_LOG(AL_LOG_LEVEL_DEBUG, "-----Table[%d] end-----\r\n", i);
+    }
+}
+
+/**
+ *
+ * This function reads and logs the values of various MMC host controller registers, including block count,
+ * SDMA system address, block size, command transfer mode, response registers, buffer data, current state,
+ * control, reset, interrupt status, and capabilities among others. It provides a comprehensive overview
+ * of the host controller's current configuration and status.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return None.
+ */
+static AL_VOID AlMmc_Dev_DisplayAllReg(AL_MMC_DevStruct *Dev)
+{
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "----------Host Controller Register----------\r\n");
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-BlkCnt_SdmaSysAddr: 0x%x\r\n", AlMmc_ll_ReadBlkCnt_SdmaSysAddr(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-BlkCnt_BlkSize: 0x%x\r\n", AlMmc_ll_ReadBlkCnt_BlkSize(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Argument: 0x%x\r\n", AlMmc_ll_ReadArgument(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Cmd_XferMode: 0x%x\r\n", AlMmc_ll_ReadCmd_XferMode(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-ReadResp01: 0x%x\r\n", AlMmc_ll_ReadResp01(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-ReadResp23: 0x%x\r\n", AlMmc_ll_ReadResp23(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-ReadResp45: 0x%x\r\n", AlMmc_ll_ReadResp45(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-ReadResp67: 0x%x\r\n", AlMmc_ll_ReadResp67(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-BufferData: 0x%x\r\n", AlMmc_ll_ReadBufferData(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-CurState: 0x%x\r\n", AlMmc_ll_ReadCurState(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Ctrl_Wup_Bgap_Pwr_Host1: 0x%x\r\n", AlMmc_ll_ReadCtrl_Wup_Bgap_Pwr_Host1(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-SwRst_Ctrl_Tout_Clk: 0x%x\r\n", AlMmc_ll_ReadSwRst_Ctrl_Tout_Clk(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-IntrStat: 0x%x\r\n", AlMmc_ll_ReadIntrStat(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-IntrStatEn: 0x%x\r\n", AlMmc_ll_ReadIntrStatEn(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-IntrSigEn: 0x%x\r\n", AlMmc_ll_ReadIntrSigEn(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-AutoCmdStat_CtrlHost2: 0x%x\r\n", AlMmc_ll_ReadAutoCmdStat_CtrlHost2(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-AdmaErrStat: 0x%x\r\n", AlMmc_ll_ReadAdmaErrStat(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-AdmaSysAddrLow: 0x%x\r\n", AlMmc_ll_ReadAdmaSysAddrLow(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Capability1: 0x%x\r\n", AlMmc_ll_ReadCapability1(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "|-Capability2: 0x%x\r\n", AlMmc_ll_ReadCapability2(Dev->HwConfig.BaseAddress));
+    AL_LOG(AL_LOG_LEVEL_DEBUG, "----------Host Controller Register Done----------\r\n");
+}
+
+/**
+ *
+ * This function logs detailed information about the MMC/SD card, including the device address, manufacturer ID,
+ * OEM ID, card name, bus speed, mode, read block length, version, high capacity status, and capacity. It differentiates
+ * between SD and eMMC card types and formats the output accordingly.
+ *
+ * @param Dev Pointer to the MMC device structure.
+ * @return None.
+ */
+static AL_VOID AlMmc_Dev_DisplayCardInfo(AL_MMC_DevStruct *Dev)
+{
+    AL_LOG(AL_LOG_LEVEL_INFO, "----------Card Info----------\r\n");
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-Device: mmc@0x%x\r\n", Dev->HwConfig.BaseAddress);
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-Manufacturer ID: 0x%x\r\n", Dev->CardInfo.Cid.Sd.Mid);
+    if (Dev->CardInfo.CardType == AL_MMC_CARD_TYPE_SD) {
+        AL_LOG(AL_LOG_LEVEL_INFO, "|-OEM: 0x%x\r\n", Dev->CardInfo.Cid.Sd.Oid);
+        AL_LOG(AL_LOG_LEVEL_INFO, "|-Name: %c%c%c%c%c\r\n", Dev->CardInfo.Cid.Sd.Pnm103_96,
+                                                        Dev->CardInfo.Cid.Sd.Pnm95_88,
+                                                        Dev->CardInfo.Cid.Sd.Pnm87_80,
+                                                        Dev->CardInfo.Cid.Sd.Pnm79_72,
+                                                        Dev->CardInfo.Cid.Sd.Pnm71_64);
+    } else {
+        AL_LOG(AL_LOG_LEVEL_INFO, "|-OEM: 0x%x\r\n", Dev->CardInfo.Cid.Emmc.Oid);
+        AL_LOG(AL_LOG_LEVEL_INFO, "|-Name: %c%c%c%c%c%c\r\n", Dev->CardInfo.Cid.Emmc.Pnm103_96,
+                                                              Dev->CardInfo.Cid.Emmc.Pnm95_88,
+                                                              Dev->CardInfo.Cid.Emmc.Pnm87_80,
+                                                              Dev->CardInfo.Cid.Emmc.Pnm79_72,
+                                                              Dev->CardInfo.Cid.Emmc.Pnm71_64,
+                                                              Dev->CardInfo.Cid.Emmc.Pnm63_56);
+    }
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-Bus Speed: %d KHz\r\n", Dev->CardInfo.FreqKhz);
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-Bus Width: %d-bit\r\n", Dev->CardInfo.BusWidth);
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-Tuning Offset: %d\r\n", Dev->HostInfo.TuningOffset);
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-DMA Mode: %s\r\n", DmaInfo[Dev->Config.DmaMode]);
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-Mode: %s\r\n", SpeedInfo[Dev->CardInfo.SpdMode]);
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-Rd Block Len: %d\r\n", Dev->CardInfo.BlkLen);
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-Version: %d\r\n", Dev->CardInfo.CardVer);
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-High Capacity: %s\r\n", Dev->CardInfo.HiCap ? "YES" : "NO");
+    AL_LOG(AL_LOG_LEVEL_INFO, "|-Capacity: %d.%dGB\r\n", (Dev->CardInfo.CardCap >> 20), AlMmc_CapacityDot[(Dev->CardInfo.CardCap >> 16) & 0xF]);
+    AL_LOG(AL_LOG_LEVEL_INFO, "-----------------------------\r\n");
+}

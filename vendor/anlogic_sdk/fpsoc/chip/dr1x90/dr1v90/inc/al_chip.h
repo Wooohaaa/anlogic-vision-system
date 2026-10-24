@@ -1,0 +1,134 @@
+/*
+ * Copyright (c) 2023, Anlogic Inc. and Contributors. All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+#ifndef __AL_CHIP_H_
+#define __AL_CHIP_H_
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+/*----------------------------------------------------------------------------
+* Define cpu feature
+*----------------------------------------------------------------------------*/
+#define __ECLIC_PRESENT    (1)
+#define __SYSTIMER_PRESENT (1)
+#define __PMP_PRESENT      (1)
+#define __PMP_ENTRY_NUM    (16)
+#define __ICACHE_PRESENT   (1)
+#define __DCACHE_PRESENT   (1)
+#define __Vendor_SysTickConfig (0)
+#define L1_CACHE_BYTES     (64)
+
+/*----------------------------------------------------------------------------
+*Define SOC INTERRUPT NUM
+*----------------------------------------------------------------------------*/
+
+#define SOC_INT_MAX        (151)
+
+#ifndef __ASSEMBLER__
+#include "al_type.h"
+
+AL_VOID AlChip_Init(AL_VOID);
+
+#include "al_hwcfg.h"
+#include "soc_plat.h"
+
+/*----------------------------------------------------------------------------
+* Define Interrupt Number
+*----------------------------------------------------------------------------*/
+typedef enum {
+    SysTimerSW_IRQn      =  3,
+    SysTimer_IRQn        =  7,
+    SOC_REQ0_IRQn        =  30,
+    SOC_ACK0_IRQn        =  31,
+    SOC_REQ1_IRQn        =  32,
+    SOC_ACK1_IRQn        =  33,
+    SOC_REQ2_IRQn        =  34,
+    SOC_ACK2_IRQn        =  35,
+    SOC_REQ3_IRQn        =  36,
+    SOC_ACK3_IRQn        =  37,
+    SOC_PMU0_IRQn        =  39,
+    SOC_PMU1_IRQn        =  40,
+    SOC_ADC_IRQn         =  43,
+    SOC_WDT0_IRQn        =  45,
+    SOC_WDT1_IRQn        =  46,
+    SOC_TC0_TC0_IRQn    =  48,
+    SOC_TC0_TC1_IRQn    =  49,
+    SOC_TC0_TC2_IRQn    =  50,
+    SOC_TC1_TC0_IRQn    =  51,
+    SOC_TC1_TC1_IRQn    =  52,
+    SOC_TC1_TC2_IRQn    =  53,
+    SOC_DMAC_ABORT_IRQn  =  56,
+    SOC_DMAC_CH0_IRQ     =  57,
+    SOC_DMAC_CH1_IRQ     =  58,
+    SOC_DMAC_CH2_IRQ     =  59,
+    SOC_DMAC_CH3_IRQ     =  60,
+    SOC_DMAC_CH4_IRQ     =  61,
+    SOC_DMAC_CH5_IRQ     =  62,
+    SOC_DMAC_CH6_IRQ     =  63,
+    SOC_DMAC_CH7_IRQ     =  64,
+    SOC_DMACAHB_IRQn     =  65,
+    SOC_SMC_IRQn         =  66,
+    SOC_QSPI_IRQn        =  67,
+    GPIO0_IRQn           =  71,
+    SOC_USB0_IRQn        =  75,
+    SOC_USB1_IRQn        =  76,
+    SOC_GBE0_IRQn        =  77,
+    SOC_GBE1_IRQn        =  78,
+    SOC_MMC0_IRQn        =  81,
+    SOC_MMC1_IRQn        =  82,
+    SOC_IIC0_IRQn        =  83,
+    SOC_IIC1_IRQn        =  84,
+    SOC_SPI0_MST_IRQn    =  85,
+    SOC_SPI0_SLV_IRQn    =  86,
+    SOC_SPI1_MST_IRQn    =  87,
+    SOC_SPI1_SLV_IRQn    =  88,
+    SOC_UART0_IRQn       =  89,
+    SOC_UART1_IRQn       =  90,
+    SOC_CAN0_IRQn        =  91,
+    SOC_CAN1_IRQn        =  92,
+    AXI_ETH_LITE0_INTR_ID = 101,
+    NPU_SOFT_IRQn        =  116,
+    SOC_XMON_IRQn        =  129,
+    SOC_MPU_IRQn         =  130,
+    NPU_HARD_IRQn        =  131,
+    SOC_APU2RPU_REQ_IRQn =  135,
+    SOC_APU2RPU_ACK_IRQn =  136,
+    SOC_RPU2APU_REQ_IRQn =  137,
+    SOC_RPU2APU_ACK_IRQn =  138,
+} AL_IrqNumEnum;
+
+#define ECLIC__BASE_ADDR        (0x68020000UL)
+
+#define PMP_ENTRY_NUM           (16)
+
+#define AL_DEFAULT_ATTR(name)  AL_INTR_AttrStrct name = {   \
+            .TrigMode   =  LEVEL_HIGH_TRIGGER,              \
+            .Priority   =  0,                               \
+            .VectorMode =  NON_VECTOR_INTERRUPT,            \
+};
+
+
+#define AL_PINCTRL_MIO_PIN_MAX           54
+#define AL_PINCTRL_MIO_BASE             (0xF8803000UL)
+#define AL_PINCTRL_EMIO_SELECT_BASE     (0xF8803000UL)
+
+#define AL_PINCTRL_PIN_BASE(pin)        (AL_PINCTRL_MIO_BASE)
+
+
+#ifndef SYSTICK_CLOCK_HZ
+#define SYSTICK_CLOCK_HZ (SYSTEM_CLOCK / 5)
+#endif
+
+
+
+#endif //__ASSEMBLER__
+
+#ifdef __cplusplus
+}
+#endif
+#endif /* AL_CHIP_H */

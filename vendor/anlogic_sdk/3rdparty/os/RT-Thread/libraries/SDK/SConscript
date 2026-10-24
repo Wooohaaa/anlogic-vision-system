@@ -1,0 +1,32 @@
+# RT-Thread building script for component
+
+Import('rtconfig')
+Import('RTT_ROOT')
+import os
+import re
+import rtconfig
+
+from building import *
+from rtconfig import SDK_ROOT
+from rtconfig import CHIP_ROOT
+from rtconfig import ARCH_ROOT
+
+src = list()
+
+CPPPATH = [ ARCH_ROOT + '/armv8/aarch64/cortex-a/inc',
+            ARCH_ROOT + '/common/gic_v3/inc',
+            ARCH_ROOT + '/rv64/inc',
+            CHIP_ROOT + '/inc',
+            SDK_ROOT + 'fpsoc/inc',
+            SDK_ROOT + 'solutions/boards/board_dr1x90_emulation/inc',
+            SDK_ROOT + 'fpsoc/lib/log/inc']
+
+LIBPATH = []
+
+CPPDEFINES = [ 'ENABLE_PINMUX_MODE1',
+               'USE_RTOS',
+               'RTOS_RTTHREAD']
+
+group = DefineGroup('anlogic_sdk', src, depend = ['RT_USE_ARM_CORE'], CPPPATH = CPPPATH)
+
+Return('group')

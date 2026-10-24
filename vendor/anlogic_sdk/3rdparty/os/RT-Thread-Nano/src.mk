@@ -1,0 +1,26 @@
+ifeq ($(AL_CHIP),ph1p35)
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/components/finsh/cmd.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/components/finsh/msh_file.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/components/finsh/msh_parse.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/components/finsh/msh.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/components/finsh/shell.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/libcpu/risc-v/nuclei/context_gcc.S
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/libcpu/risc-v/nuclei/cpuport.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/clock.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/components.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/cpu.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/device.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/idle.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/ipc.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/irq.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/kservice.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/mem.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/mempool.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/object.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/scheduler.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/signal.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/slab.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/thread.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/src/timer.c
+C_SRCS +=$(AL_SDK_ROOT)/3rdparty/os/RT-Thread-Nano/rt-thread/bsp/rtt_port.c
+endif

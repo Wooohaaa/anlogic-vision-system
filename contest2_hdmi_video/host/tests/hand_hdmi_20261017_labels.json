@@ -1,0 +1,17 @@
+{
+  "source_sha256": "e5c81b4382e7892809e43f8384c3cdb774241f187031ede0b6a0b63dce03ccbf",
+  "note": "Manually inspected stable intervals only; transitions, camera pans and clipped hands are unscored. This recording does not validate POINT or V.",
+  "segments": [
+    {"name":"empty_dark", "id":0, "start":0, "end":59},
+    {"name":"open_dark_1", "id":3, "start":82, "end":106},
+    {"name":"fist_dark_1", "id":1, "start":125, "end":151},
+    {"name":"open_dark_2", "id":3, "start":170, "end":193},
+    {"name":"fist_dark_2", "id":1, "start":214, "end":249},
+    {"name":"open_dark_3", "id":3, "start":275, "end":300},
+    {"name":"fist_dark_3", "id":1, "start":345, "end":365},
+    {"name":"open_backlight_1", "id":3, "start":590, "end":606},
+    {"name":"fist_backlight_1", "id":1, "start":635, "end":646},
+    {"name":"open_backlight_2", "id":3, "start":657, "end":671},
+    {"name":"fist_backlight_2", "id":1, "start":700, "end":724}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "status": "INDEPENDENT_FLASH_AUDIT_PASS_COLD_BOOT_PENDING",
+  "time": "2026-10-24T20:34:09.177901+08:00",
+  "resources": {
+    "slice": 19777,
+    "eram": 108,
+    "dsp": 31
+  },
+  "slack": {
+    "SWNS": 0.112,
+    "HWNS": 0.02,
+    "STNS": 0.0,
+    "HTNS": 0.0
+  },
+  "fpga_sha256": "0f411f5c53c3b368dc3adf35268e80d5d3564cc640f418d90ec847dcccfbe40e",
+  "flash_sha256": "a8d16b5b1782a239ee39e3dc473531a34a73526cbd9ee4ab18dad194c208c446",
+  "source_files_verified": 703,
+  "mcu_version": 83,
+  "motor_enabled": false,
+  "board_quality_verified": false
+}

@@ -1,0 +1,9 @@
+packages/packages.dbsqlite
+packages/pkgs_error.json
+packages/pkgs.json
+packages/SConscript
+.sconsign.dblite
+.compile_commands.json
+rtthread.map
+compile_commands.json
+__pycache__

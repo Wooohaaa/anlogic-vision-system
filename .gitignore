@@ -1,0 +1,16 @@
+/config.local.json
+/build/
+**/__pycache__/
+*.pyc
+/contest2_hdmi_video/tmp/
+/contest2_hdmi_video/deliverables/
+/contest2_hdmi_video/prj/td_project/*_Runs/
+/contest2_hdmi_video/prj/td_project/*.db
+/contest2_hdmi_video/prj/td_project/*.log
+/contest2_hdmi_video/prj/td_project/*.logw
+/contest2_hdmi_video/prj/td_project/.*.f
+*.vvp
+*.vcd
+*.wlf
+!firmware/
+!firmware/**

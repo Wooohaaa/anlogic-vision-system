@@ -1,0 +1,152 @@
+{
+  "status": "DELETED_REGENERABLE_FILES",
+  "created": "2026-10-23T20:50:10.2426927+08:00",
+  "root": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video",
+  "files": 20,
+  "bytes": 3184284.0,
+  "protectedInputs": 652,
+  "targets": [
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\aruco_runtime.exe",
+      "relative": "tmp/v90_audit/aruco_runtime.exe",
+      "bytes": 176388,
+      "modifiedTicks": 639283562883814533,
+      "reason": "Host test executable"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\controller.exe",
+      "relative": "tmp/v90_audit/controller.exe",
+      "bytes": 153372,
+      "modifiedTicks": 639283562872006076,
+      "reason": "Host test executable"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\key.exe",
+      "relative": "tmp/v90_audit/key.exe",
+      "bytes": 144874,
+      "modifiedTicks": 639283562867051313,
+      "reason": "Host test executable"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_aruco_bus_stress.vvp",
+      "relative": "tmp/v90_audit/tb_aruco_bus_stress.vvp",
+      "bytes": 116143,
+      "modifiedTicks": 639283562043402216,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_aruco_snapshot.vvp",
+      "relative": "tmp/v90_audit/tb_aruco_snapshot.vvp",
+      "bytes": 44456,
+      "modifiedTicks": 639283562044594118,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_auto3a_exposure.vvp",
+      "relative": "tmp/v90_audit/tb_auto3a_exposure.vvp",
+      "bytes": 56617,
+      "modifiedTicks": 639283561659193201,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_auto3a_stats.vvp",
+      "relative": "tmp/v90_audit/tb_auto3a_stats.vvp",
+      "bytes": 29686,
+      "modifiedTicks": 639283561661905072,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_awb_bootstrap.vvp",
+      "relative": "tmp/v90_audit/tb_awb_bootstrap.vvp",
+      "bytes": 126703,
+      "modifiedTicks": 639283561592315580,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_awb_queue_boundary.vvp",
+      "relative": "tmp/v90_audit/tb_awb_queue_boundary.vvp",
+      "bytes": 112450,
+      "modifiedTicks": 639283561656275133,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_awb_toggle.vvp",
+      "relative": "tmp/v90_audit/tb_awb_toggle.vvp",
+      "bytes": 117205,
+      "modifiedTicks": 639283561655061698,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_dark_edge_effect_v88.vvp",
+      "relative": "tmp/v90_audit/tb_dark_edge_effect_v88.vvp",
+      "bytes": 185155,
+      "modifiedTicks": 639283562214522914,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_digit_adaptive_v67.vvp",
+      "relative": "tmp/v90_audit/tb_digit_adaptive_v67.vvp",
+      "bytes": 96320,
+      "modifiedTicks": 639283561857400397,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_hand_binary_input_recovery.vvp",
+      "relative": "tmp/v90_audit/tb_hand_binary_input_recovery.vvp",
+      "bytes": 385157,
+      "modifiedTicks": 639283562154223272,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_hand_lost_end_v88.vvp",
+      "relative": "tmp/v90_audit/tb_hand_lost_end_v88.vvp",
+      "bytes": 382045,
+      "modifiedTicks": 639283562045733216,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_key2_v83.vvp",
+      "relative": "tmp/v90_audit/tb_key2_v83.vvp",
+      "bytes": 11016,
+      "modifiedTicks": 639283562041538037,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_latency_clock.vvp",
+      "relative": "tmp/v90_audit/tb_latency_clock.vvp",
+      "bytes": 19470,
+      "modifiedTicks": 639283562037490475,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_photo_alignment.vvp",
+      "relative": "tmp/v90_audit/tb_photo_alignment.vvp",
+      "bytes": 277048,
+      "modifiedTicks": 639283561843751599,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_reflection_v59.vvp",
+      "relative": "tmp/v90_audit/tb_reflection_v59.vvp",
+      "bytes": 148563,
+      "modifiedTicks": 639283561687139970,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_stepper_ahb_v82.vvp",
+      "relative": "tmp/v90_audit/tb_stepper_ahb_v82.vvp",
+      "bytes": 136772,
+      "modifiedTicks": 639283562042430524,
+      "reason": "Simulation executable/waveform"
+    },
+    {
+      "path": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\v90_audit\\tb_v89_black_matte.vvp",
+      "relative": "tmp/v90_audit/tb_v89_black_matte.vvp",
+      "bytes": 464844,
+      "modifiedTicks": 639283562220914154,
+      "reason": "Simulation executable/waveform"
+    }
+  ],
+  "deleted": 20,
+  "deletedBytes": 3184284
+}

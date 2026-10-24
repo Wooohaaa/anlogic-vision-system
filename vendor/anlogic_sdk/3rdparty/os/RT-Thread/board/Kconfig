@@ -1,0 +1,76 @@
+menu "Hardware Drivers Config"
+
+config SOC_HUMMINGBIRD
+    bool
+    select SOC_SERIES_HUMMINGBIRD
+    default y
+
+menu "Onboard Peripheral Drivers"
+
+    config BSP_USING_UART_CONSOLE
+        bool "Enable UART CONSOLE"
+        select BSP_USING_UART
+        select BSP_USING_UART0
+        default y
+endmenu
+
+menu "On-chip Peripheral Drivers"
+
+    menuconfig BSP_USING_UART
+        bool "Enable UART"
+        default y
+        select RT_USING_SERIAL
+        if BSP_USING_UART
+            config BSP_USING_UART0
+                bool "Enable UART0"
+                default n
+            config BSP_USING_UART1
+                bool "Enable UART1"
+                default n
+        endif
+
+endmenu
+
+menu "Board extended module Drivers"
+
+endmenu
+
+menu "Soc Config"
+
+    choice 
+        prompt "Select the core to use"
+        default USE_RISCV_CORE
+
+        config USE_RISCV_CORE
+        bool "use riscv core"
+            select RISCV_CORE
+
+        config USE_ARM_CORE
+        bool "use arm core"
+            select AARCH64_CORE
+
+    endchoice
+
+    if USE_ARM_CORE
+
+        config BSP_USING_GIC
+        bool
+        default y
+        depends on USE_ARM_CORE
+
+        choice
+            prompt "GIC Version"
+            default BSP_USING_GICV3
+
+            config BSP_USING_GICV2
+                bool "GICv2"
+
+            config BSP_USING_GICV3
+                bool "GICv3"
+        endchoice
+    
+    endif 
+
+endmenu
+
+endmenu
