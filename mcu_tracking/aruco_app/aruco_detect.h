@@ -14,7 +14,7 @@ typedef struct {
 } ua_aruco_detection;
 /* Caller-owned workspace. No malloc, recursion, SDK dependency or motor commands.
  * step() visits at most budget pixels/nodes; one candidate verification is a
- * bounded extra operation (324 cached decode reads plus dictionary comparisons,
+ * bounded extra operation (at most 648 cached decode reads plus two strict dictionary comparisons,
  * then at most 1152 cached edge-refinement reads after a successful ID).
  * Input must remain immutable from begin until done. */
 typedef struct {

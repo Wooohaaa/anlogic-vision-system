@@ -7,7 +7,7 @@ module ua_tracking_mcu #(
                 input video_clk,video_rst_n,input [95:0] video_rgb,
                 input video_valid,video_sof,video_eol,input aruco_enable,
                 input display_clk,display_rst_n,
-                output O_aruco_valid,output [11:0] O_aruco_id_bcd,
+                output O_aruco_valid,output reg O_aruco_update,output [11:0] O_aruco_id_bcd,
                 output [21:0] O_aruco_corner0,O_aruco_corner1,O_aruco_corner2,O_aruco_corner3,
                 output [25:0] O_aruco_edge0,O_aruco_edge1,O_aruco_edge2,O_aruco_edge3,
                 output reg [166:0] O_aruco_axes,
@@ -88,16 +88,17 @@ module ua_tracking_mcu #(
     always @(posedge display_clk or negedge display_rst_n)begin
         if(!display_rst_n)begin
             aruco_result_toggle_sync<=0;aruco_result_toggle_seen<=0;
-            aruco_result_valid_disp<=0;aruco_result_id_bcd_disp<=0;
+            aruco_result_valid_disp<=0;aruco_result_id_bcd_disp<=0;O_aruco_update<=0;
             O_aruco_axes<=167'd0;
             aruco_result_corner0_disp<=0;aruco_result_corner1_disp<=0;
             aruco_result_corner2_disp<=0;aruco_result_corner3_disp<=0;
             aruco_result_edge0_disp<=0;aruco_result_edge1_disp<=0;
             aruco_result_edge2_disp<=0;aruco_result_edge3_disp<=0;
         end else begin
+            O_aruco_update<=0;
             aruco_result_toggle_sync<={aruco_result_toggle_sync[0],aruco_result_toggle_bus};
             if(aruco_result_toggle_sync[1]!=aruco_result_toggle_seen)begin
-                aruco_result_toggle_seen<=aruco_result_toggle_sync[1];
+                aruco_result_toggle_seen<=aruco_result_toggle_sync[1];O_aruco_update<=1;
                 aruco_result_valid_disp<=aruco_result_valid_bus;
                 O_aruco_axes<=aruco_axes_bus;
                 aruco_result_id_bcd_disp<=aruco_result_id_bcd_bus;

@@ -21,7 +21,8 @@ module video_out (
     input wire        I_video_rd_en,  
     output reg[23:0]  O_vdieo_data,
     output wire       O_meta_start,
-    output wire [1:0] O_meta_slot
+    output wire [1:0] O_meta_slot,
+    output wire O_pixel_underflow
 );
 
     reg         S_fifo_rst;     
@@ -66,6 +67,7 @@ module video_out (
     // Observation only: snapshot the same pointer as the DDR address load.
     assign O_meta_start = S_video_frame_start;
     assign O_meta_slot = I_video_out_rp;
+    assign O_pixel_underflow = S_fifo_rd_en && S_fifo_emtpy;
 
 
     // The display FIFO is reset briefly at each HDMI frame boundary.  The

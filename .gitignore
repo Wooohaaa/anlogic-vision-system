@@ -12,5 +12,7 @@
 *.vvp
 *.vcd
 *.wlf
+*.log
+*.logw
 !firmware/
 !firmware/**

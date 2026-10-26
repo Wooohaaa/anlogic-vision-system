@@ -12,17 +12,21 @@ module ua_frame_latency #(
     parameter integer PIXEL_HZ = 75000000,
     // The ISP packs four RGB888 pixels (96 bits) into three 128-bit words.
     // For the active 1280x720 mode: 1280*720*24/128 = 172800 writes/frame.
-    parameter integer FRAME_WORDS = 172800
+    parameter integer FRAME_WORDS = 172800,
+    parameter integer FPS_ENABLE = 0, IMG_HEIGHT = 720
 )(
     input I_rst_n,
     input I_camera_clk, input I_raw_start,
     input I_ddr_clk, input I_write_start, input [1:0] I_write_slot,
     input I_write_word, input I_read_start, input [1:0] I_read_slot,
     input I_pixel_clk, input I_display_start,
+    input I_display_end, I_underflow,
+    output [7:0] O_in_fps_bcd, O_out_fps_bcd, output O_second_tick,
     output reg O_valid, output reg [15:0] O_delay_ms
 );
     reg [15:0] ms_count, ms_gray;
-    reg [31:0] divider;
+    localparam DIV_W = (PIXEL_HZ/1000 > 1) ? $clog2(PIXEL_HZ/1000) : 1;
+    reg [DIV_W-1:0] divider;
     wire [15:0] next_ms = ms_count + 16'd1;
     always @(posedge I_pixel_clk or negedge I_rst_n) begin
         if (!I_rst_n) begin
@@ -67,7 +71,14 @@ module ua_frame_latency #(
     reg [3:0] slot_valid;
     reg [1:0] writing_slot;
     reg writing_valid;
-    reg [31:0] word_count;
+    localparam WORD_W = (FRAME_WORDS > 1) ? $clog2(FRAME_WORDS+1) : 1;
+    reg [WORD_W-1:0] word_count;
+    wire write_complete = !I_write_start && I_write_word &&
+        word_count == FRAME_WORDS-1 && writing_valid;
+    reg complete_toggle;
+    always @(posedge I_ddr_clk or negedge I_rst_n)
+        if (!I_rst_n) complete_toggle <= 0;
+        else if (write_complete) complete_toggle <= ~complete_toggle;
     // Read-result mailbox with acknowledgement: payload held until accepted.
     reg [16:0] read_payload;
     reg read_req;
@@ -134,6 +145,77 @@ module ua_frame_latency #(
             end
         end
     end
+    generate if (FPS_ENABLE != 0) begin: gen_fps
+      ua_stream_fps meter(
+        .clk(I_pixel_clk),.rst_n(I_rst_n),
+        .ms_tick(divider == PIXEL_HZ/1000-1),
+        .complete_toggle(complete_toggle),
+        .sof(I_display_start),.frame_end(I_display_end),
+        .underflow(I_underflow),
+        .source_valid((selected_fresh || result_event) && chosen[16] && !age_ms[15]),
+        .source_id(chosen[15:0]),.in_bcd(O_in_fps_bcd),
+        .out_bcd(O_out_fps_bcd),.second_tick(O_second_tick));
+    end else begin: gen_no_fps
+      assign O_in_fps_bcd=0; assign O_out_fps_bcd=0; assign O_second_tick=0;
+    end endgenerate
+endmodule
+
+// Observation only. Native source cadence is <= 61 Hz (starts >1ms apart),
+// hence the existing 16-bit capture timestamp identifies adjacent frames.
+// Complete DDR writes are >3 HDMI clocks apart: the toggle cannot be overrun.
+// OUT counts only frames with all active lines and no FIFO underflow; repeats
+// of the last delivered source are excluded. Rates saturate at 99, never wrap.
+module ua_stream_fps(
+ input clk,rst_n,ms_tick,complete_toggle,sof,frame_end,underflow,source_valid,
+ input [15:0] source_id,
+ output reg [7:0] in_bcd,out_bcd,output second_tick);
+ (* ASYNC_REG="TRUE" *) reg [2:0] complete_sync;
+ reg complete_seen;
+ wire input_event=complete_sync[2]!=complete_seen;
+ reg [9:0] ms_phase;
+ assign second_tick=ms_tick && ms_phase==999;
+ reg active,bad,delivered;
+ reg [15:0] frame_id,last_id;
+ // Reuse the mixer's existing row counter instead of duplicating 10 bits:
+ // frame_end is DE && EOL && row==719 for the fixed native VTC. It is NOT
+ // just the next SOF. Partial/interrupted frames never assert frame_end.
+ wire output_event=active && frame_end &&
+     !sof && !bad && !underflow && (!delivered || frame_id!=last_id);
+ reg [7:0] input_window,output_window;
+ function [7:0] inc_bcd;
+   input [7:0] x;
+   begin
+     if(x==8'h99) inc_bcd=x;
+     else if(x[3:0]==9) inc_bcd={x[7:4]+4'd1,4'd0};
+     else inc_bcd=x+8'd1;
+   end
+ endfunction
+ always @(posedge clk or negedge rst_n) begin
+   if(!rst_n) begin
+     complete_sync<=0;complete_seen<=0;ms_phase<=0;
+     active<=0;bad<=0;frame_id<=0;
+     last_id<=0;delivered<=0;input_window<=0;output_window<=0;in_bcd<=0;out_bcd<=0;
+   end else begin
+     complete_sync<={complete_sync[1:0],complete_toggle};
+     complete_seen<=complete_sync[2];
+     if(ms_tick) ms_phase<=second_tick ? 10'd0 : ms_phase+1'b1;
+     if(second_tick) begin
+       in_bcd<=input_event ? inc_bcd(input_window):input_window;
+       out_bcd<=output_event ? inc_bcd(output_window):output_window;
+       input_window<=0;output_window<=0;
+     end else begin
+       if(input_event) input_window<=inc_bcd(input_window);
+       if(output_event) output_window<=inc_bcd(output_window);
+     end
+     if(sof) begin
+       active<=1;bad<=underflow || !source_valid;frame_id<=source_id;
+     end else if(active) begin
+       if(underflow)bad<=1;
+       if(frame_end)active<=0;
+     end
+     if(output_event)begin delivered<=1;last_id<=frame_id;end
+   end
+ end
 endmodule
 
 `endif

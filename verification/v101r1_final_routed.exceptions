@@ -1,0 +1,481 @@
+Created by          : Tang Dynasty v6.2.168116
+                    : Copyright (c) 2012-2025 Anlogic Inc.
+Generated           : Mon Oct 26 22:05:30 2026
+
+Top Model           : design_top_user
+Device              : PH1P35MDG324
+Speed               : 3
+STA coverage        : 95.28%
+Constraint File     : C:/Users/Chieh yu/Desktop/FPGA/anlogic/contest2_hdmi_video/prj/td_project/camera_to_dsi_display.sdc;
+Confidence          : Routed
+Check Corner        : Both (Slow and Fast)
+CRPR Enabled        : Yes
+Report Scheme       : 10 end point(s) per path group, 1 path(s) per end point
+
+
+Check Status
+-------------
+
+Corner   | Max      Min     
+------------------------------------
+Slow     | yes      yes     
+Fast     | yes      yes     
+
+MCP/SMD Summary
+--------------------
+
+		Max Check
+		--------------------
+		     Total    Dominated     Shadowed      Ignored   Constraint
+		         6            6            0            0   set_max_delay 15.000 -datapath_only -from [get_clocks {pll_clk_24m}] -through [get_nets {gen_ae$u_ae_panel/packet[*]}] -to [get_clocks {pll_clk_100m}]
+		        18            0            0           18   set_max_delay -from [get_regs -nowarn {*/primary_addr_gray_reg[*]}] -to [get_regs -nowarn {*/sync_r1[*]}] -datapath_only 14.700
+		        18            0            0           18   set_max_delay -from [get_regs -nowarn {*/primary_addr_gray_reg[*]}] -to [get_regs -nowarn {*/sync_r1[*]}] -datapath_only 13.033
+
+		Min Check
+		--------------------
+		     Total    Dominated     Shadowed      Ignored   Constraint
+
+Status of timing exceptions
+--------------------------------------------------
+
+MCP/SMD Details
+--------------------
+
+
+Constraint     :   set_max_delay 15.000 -datapath_only -from [get_clocks {pll_clk_24m}] -through [get_nets {gen_ae$u_ae_panel/packet[*]}] -to [get_clocks {pll_clk_100m}]
+Check Type     :   Max
+--------------------------------------------------------------------------------
+Total Paths    :            6
+Dominated      :            6,        100.0%
+
+
+Constraint     :   set_max_delay -from [get_regs -nowarn {*/primary_addr_gray_reg[*]}] -to [get_regs -nowarn {*/sync_r1[*]}] -datapath_only 14.700
+Check Type     :   Max
+--------------------------------------------------------------------------------
+Total Paths    :           18
+Dominated      :            0,          0.0%
+Ignored        :           18,        100.0%
+               :           18, by set_clock_groups
+
+
+Constraint     :   set_max_delay -from [get_regs -nowarn {*/primary_addr_gray_reg[*]}] -to [get_regs -nowarn {*/sync_r1[*]}] -datapath_only 13.033
+Check Type     :   Max
+--------------------------------------------------------------------------------
+Total Paths    :           18
+Dominated      :            0,          0.0%
+Ignored        :           18,        100.0%
+               :           18, by set_clock_groups
+
+
+Details on timing exceptions
+--------------------------------------------------
+
+Timing details for constraint:
+	set_max_delay 15.000 -datapath_only -from [get_clocks {pll_clk_24m}] -through [get_nets {gen_ae$u_ae_panel/packet[*]}] -to [get_clocks {pll_clk_100m}]
+--------------------------------------------------
+
+----------------------------------------------------------------------------------------------------
+Path Group     :     
+set_max_delay 15.000 -datapath_only -from [get_clocks {pll_clk_24m}] -through [get_nets {gen_ae$u_ae_panel/packet[*]}] -to [get_clocks {pll_clk_100m}]
+
+Type           :     SMD
+
+Statistics:
+Max            : SWNS     13.988ns, STNS      0.000ns,         0 Viol Endpoints,         6 Total Endpoints,         6 Paths Analyzed
+Min            : HWNS      0.000ns, HTNS      0.000ns,         0 Viol Endpoints,         0 Total Endpoints,         0 Paths Analyzed
+----------------------------------------------------------------------------------------------------
+
+Max Paths
+----------------------------------------------------------------------------------------------------
+Slack               : 13.988ns
+Begin Point         : gen_ae$u_ae_panel/packet_reg[0]_syn_13.clk (rising edge triggered by clock pll_clk_24m  { rise@0.000000ns  fall@21.000000ns  period=42.000000 })
+End Point           : gen_ae$u_ae_panel/snapshot_reg[0]_syn_5.imf (rising edge triggered by clock pll_clk_100m  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow_m40c
+Budget              : 15.000ns { pll_clk_100m rising@0.000ns - pll_clk_24m rising@0.000ns }
+Data Path Delay     : 0.948ns (cell 0.354ns (37%), net 0.594ns (63%))
+Clock Skew          : 0.000ns
+Logic Level         : 1 ( LUT4=1 )
+Max Fanout          : 2
+Clock Uncertainty   : 0.000ns (sdc uncertainty: 0.000ns, default uncertainty: 0.138ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[1]
+net (fo=1)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkin[0]
+GCLK                x023y039z18         0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkout
+net (fo=3)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_syn_1,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkin
+SCLK                x023y059z2          0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkout
+net (fo=102)                            0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/packet_reg[0]_syn_13.clk
+--------------------------------------------------------------------  ---------------
+clk2q               x014y077z2          0.137    r     0.137          pin: gen_ae$u_ae_panel/packet_reg[0]_syn_13.oqb
+net (fo=2)                              0.594          0.731          net: gen_ae$u_ae_panel/packet[0],  ../user_source/hdl_source/design_top_user.v(316)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[0]_syn_5.imf
+LUT4 (reg)          x015y077z4          0.217    f     0.948       1  net: gen_ae$u_ae_panel/snapshot[0],  ../user_source/hdl_source/design_top_user.v(316)
+--------------------------------------------------------------------  ---------------
+Arrival                                                0.948               
+
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[0]
+net (fo=1)                              0.000          0.000          net: u_PLL/clk0_buf,  ../user_source/ip_source/PLL/PLL.v(32)
+                                                                      pin: u_PLL/bufg_feedback.clkin[0]
+GCLK                x023y039z19         0.000          0.000          pin: u_PLL/bufg_feedback.clkout
+net (fo=4)                              0.000          0.000          net: gen_ae$gen_mode_ctrl$u_ua_mode_ctrl/I_clk,  ../user_source/hdl_source/ua_mode_ctrl.v(22)
+                                                                      pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkin
+SCLK                x023y059z3          0.000          0.000          pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkout
+net (fo=14)                             0.000          0.000          net: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[0]_syn_5.clk
+constraint delay                       15.000         15.000               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.064         14.936               
+clock uncertainty                       0.000         14.936               
+clock pessimism                         0.000         14.936               
+--------------------------------------------------------------------  ---------------
+Required                                              14.936               
+--------------------------------------------------------------------  ---------------
+Slack                                                 13.988               
+
+Slack               : 14.172ns
+Begin Point         : gen_ae$u_ae_panel/packet_reg[5]_syn_5.clk (rising edge triggered by clock pll_clk_24m  { rise@0.000000ns  fall@21.000000ns  period=42.000000 })
+End Point           : gen_ae$u_ae_panel/snapshot_reg[5]_syn_5.id (rising edge triggered by clock pll_clk_100m  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow_m40c
+Budget              : 15.000ns { pll_clk_100m rising@0.000ns - pll_clk_24m rising@0.000ns }
+Data Path Delay     : 0.764ns (cell 0.337ns (44%), net 0.427ns (56%))
+Clock Skew          : 0.000ns
+Logic Level         : 1 ( LUT4=1 )
+Max Fanout          : 2
+Clock Uncertainty   : 0.000ns (sdc uncertainty: 0.000ns, default uncertainty: 0.138ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[1]
+net (fo=1)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkin[0]
+GCLK                x023y039z18         0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkout
+net (fo=3)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_syn_1,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkin
+SCLK                x023y059z2          0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkout
+net (fo=102)                            0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/packet_reg[5]_syn_5.clk
+--------------------------------------------------------------------  ---------------
+clk2q               x014y078z4          0.126    f     0.126          pin: gen_ae$u_ae_panel/packet_reg[5]_syn_5.oqa
+net (fo=2)                              0.427          0.553          net: gen_ae$u_ae_panel/packet[5],  ../user_source/hdl_source/design_top_user.v(316)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[5]_syn_5.id
+LUT4 (reg)          x014y076z3          0.211    f     0.764       1  net: gen_ae$u_ae_panel/snapshot[5],  ../user_source/hdl_source/design_top_user.v(316)
+--------------------------------------------------------------------  ---------------
+Arrival                                                0.764               
+
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[0]
+net (fo=1)                              0.000          0.000          net: u_PLL/clk0_buf,  ../user_source/ip_source/PLL/PLL.v(32)
+                                                                      pin: u_PLL/bufg_feedback.clkin[0]
+GCLK                x023y039z19         0.000          0.000          pin: u_PLL/bufg_feedback.clkout
+net (fo=4)                              0.000          0.000          net: gen_ae$gen_mode_ctrl$u_ua_mode_ctrl/I_clk,  ../user_source/hdl_source/ua_mode_ctrl.v(22)
+                                                                      pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkin
+SCLK                x023y059z3          0.000          0.000          pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkout
+net (fo=14)                             0.000          0.000          net: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[5]_syn_5.clk
+constraint delay                       15.000         15.000               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.064         14.936               
+clock uncertainty                       0.000         14.936               
+clock pessimism                         0.000         14.936               
+--------------------------------------------------------------------  ---------------
+Required                                              14.936               
+--------------------------------------------------------------------  ---------------
+Slack                                                 14.172               
+
+Slack               : 14.175ns
+Begin Point         : gen_ae$u_ae_panel/packet_reg[5]_syn_5.clk (rising edge triggered by clock pll_clk_24m  { rise@0.000000ns  fall@21.000000ns  period=42.000000 })
+End Point           : gen_ae$u_ae_panel/snapshot_reg[3]_syn_5.imb (rising edge triggered by clock pll_clk_100m  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow_m40c
+Budget              : 15.000ns { pll_clk_100m rising@0.000ns - pll_clk_24m rising@0.000ns }
+Data Path Delay     : 0.761ns (cell 0.373ns (49%), net 0.388ns (51%))
+Clock Skew          : 0.000ns
+Logic Level         : 1 ( LUT4=1 )
+Max Fanout          : 2
+Clock Uncertainty   : 0.000ns (sdc uncertainty: 0.000ns, default uncertainty: 0.138ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[1]
+net (fo=1)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkin[0]
+GCLK                x023y039z18         0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkout
+net (fo=3)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_syn_1,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkin
+SCLK                x023y059z2          0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkout
+net (fo=102)                            0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/packet_reg[5]_syn_5.clk
+--------------------------------------------------------------------  ---------------
+clk2q               x014y078z4          0.137    r     0.137          pin: gen_ae$u_ae_panel/packet_reg[5]_syn_5.oqb
+net (fo=2)                              0.388          0.525          net: gen_ae$u_ae_panel/packet[3],  ../user_source/hdl_source/design_top_user.v(316)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[3]_syn_5.imb
+LUT4 (reg)          x015y077z7          0.236    r     0.761       1  net: gen_ae$u_ae_panel/snapshot[3],  ../user_source/hdl_source/design_top_user.v(316)
+--------------------------------------------------------------------  ---------------
+Arrival                                                0.761               
+
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[0]
+net (fo=1)                              0.000          0.000          net: u_PLL/clk0_buf,  ../user_source/ip_source/PLL/PLL.v(32)
+                                                                      pin: u_PLL/bufg_feedback.clkin[0]
+GCLK                x023y039z19         0.000          0.000          pin: u_PLL/bufg_feedback.clkout
+net (fo=4)                              0.000          0.000          net: gen_ae$gen_mode_ctrl$u_ua_mode_ctrl/I_clk,  ../user_source/hdl_source/ua_mode_ctrl.v(22)
+                                                                      pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkin
+SCLK                x023y059z3          0.000          0.000          pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkout
+net (fo=14)                             0.000          0.000          net: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[3]_syn_5.clk
+constraint delay                       15.000         15.000               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.064         14.936               
+clock uncertainty                       0.000         14.936               
+clock pessimism                         0.000         14.936               
+--------------------------------------------------------------------  ---------------
+Required                                              14.936               
+--------------------------------------------------------------------  ---------------
+Slack                                                 14.175               
+
+Slack               : 14.179ns
+Begin Point         : gen_ae$u_ae_panel/packet_reg[2]_syn_8.clk (rising edge triggered by clock pll_clk_24m  { rise@0.000000ns  fall@21.000000ns  period=42.000000 })
+End Point           : gen_ae$u_ae_panel/snapshot_reg[1]_syn_5.id (rising edge triggered by clock pll_clk_100m  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow_m40c
+Budget              : 15.000ns { pll_clk_100m rising@0.000ns - pll_clk_24m rising@0.000ns }
+Data Path Delay     : 0.757ns (cell 0.348ns (45%), net 0.409ns (55%))
+Clock Skew          : 0.000ns
+Logic Level         : 1 ( LUT4=1 )
+Max Fanout          : 2
+Clock Uncertainty   : 0.000ns (sdc uncertainty: 0.000ns, default uncertainty: 0.138ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[1]
+net (fo=1)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkin[0]
+GCLK                x023y039z18         0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkout
+net (fo=3)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_syn_1,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkin
+SCLK                x023y059z2          0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkout
+net (fo=102)                            0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/packet_reg[2]_syn_8.clk
+--------------------------------------------------------------------  ---------------
+clk2q               x014y078z3          0.137    r     0.137          pin: gen_ae$u_ae_panel/packet_reg[2]_syn_8.oqb
+net (fo=2)                              0.409          0.546          net: gen_ae$u_ae_panel/packet[1],  ../user_source/hdl_source/design_top_user.v(316)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[1]_syn_5.id
+LUT4 (reg)          x014y076z7          0.211    f     0.757       1  net: gen_ae$u_ae_panel/snapshot[1],  ../user_source/hdl_source/design_top_user.v(316)
+--------------------------------------------------------------------  ---------------
+Arrival                                                0.757               
+
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[0]
+net (fo=1)                              0.000          0.000          net: u_PLL/clk0_buf,  ../user_source/ip_source/PLL/PLL.v(32)
+                                                                      pin: u_PLL/bufg_feedback.clkin[0]
+GCLK                x023y039z19         0.000          0.000          pin: u_PLL/bufg_feedback.clkout
+net (fo=4)                              0.000          0.000          net: gen_ae$gen_mode_ctrl$u_ua_mode_ctrl/I_clk,  ../user_source/hdl_source/ua_mode_ctrl.v(22)
+                                                                      pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkin
+SCLK                x023y059z3          0.000          0.000          pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkout
+net (fo=14)                             0.000          0.000          net: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[1]_syn_5.clk
+constraint delay                       15.000         15.000               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.064         14.936               
+clock uncertainty                       0.000         14.936               
+clock pessimism                         0.000         14.936               
+--------------------------------------------------------------------  ---------------
+Required                                              14.936               
+--------------------------------------------------------------------  ---------------
+Slack                                                 14.179               
+
+Slack               : 14.349ns
+Begin Point         : gen_ae$u_ae_panel/packet_reg[4]_syn_5.clk (rising edge triggered by clock pll_clk_24m  { rise@0.000000ns  fall@21.000000ns  period=42.000000 })
+End Point           : gen_ae$u_ae_panel/as_reg_syn_3.imb (rising edge triggered by clock pll_clk_100m  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow_m40c
+Budget              : 15.000ns { pll_clk_100m rising@0.000ns - pll_clk_24m rising@0.000ns }
+Data Path Delay     : 0.587ns (cell 0.362ns (61%), net 0.225ns (39%))
+Clock Skew          : 0.000ns
+Logic Level         : 1 ( LUT4=1 )
+Max Fanout          : 2
+Clock Uncertainty   : 0.000ns (sdc uncertainty: 0.000ns, default uncertainty: 0.138ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[1]
+net (fo=1)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkin[0]
+GCLK                x023y039z18         0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkout
+net (fo=3)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_syn_1,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkin
+SCLK                x023y059z2          0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkout
+net (fo=102)                            0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/packet_reg[4]_syn_5.clk
+--------------------------------------------------------------------  ---------------
+clk2q               x013y076z3          0.126    f     0.126          pin: gen_ae$u_ae_panel/packet_reg[4]_syn_5.oqa
+net (fo=2)                              0.225          0.351          net: gen_ae$u_ae_panel/packet[4],  ../user_source/hdl_source/design_top_user.v(316)
+                                                                      pin: gen_ae$u_ae_panel/as_reg_syn_3.imb
+LUT4 (reg)          x015y076z2          0.236    r     0.587       1  net: gen_ae$u_ae_panel/snapshot[4],  ../user_source/hdl_source/design_top_user.v(316)
+--------------------------------------------------------------------  ---------------
+Arrival                                                0.587               
+
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[0]
+net (fo=1)                              0.000          0.000          net: u_PLL/clk0_buf,  ../user_source/ip_source/PLL/PLL.v(32)
+                                                                      pin: u_PLL/bufg_feedback.clkin[0]
+GCLK                x023y039z19         0.000          0.000          pin: u_PLL/bufg_feedback.clkout
+net (fo=4)                              0.000          0.000          net: gen_ae$gen_mode_ctrl$u_ua_mode_ctrl/I_clk,  ../user_source/hdl_source/ua_mode_ctrl.v(22)
+                                                                      pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkin
+SCLK                x023y059z3          0.000          0.000          pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkout
+net (fo=14)                             0.000          0.000          net: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/as_reg_syn_3.clk
+constraint delay                       15.000         15.000               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.064         14.936               
+clock uncertainty                       0.000         14.936               
+clock pessimism                         0.000         14.936               
+--------------------------------------------------------------------  ---------------
+Required                                              14.936               
+--------------------------------------------------------------------  ---------------
+Slack                                                 14.349               
+
+Slack               : 14.376ns
+Begin Point         : gen_ae$u_ae_panel/packet_reg[2]_syn_8.clk (rising edge triggered by clock pll_clk_24m  { rise@0.000000ns  fall@21.000000ns  period=42.000000 })
+End Point           : gen_ae$u_ae_panel/snapshot_reg[3]_syn_5.id (rising edge triggered by clock pll_clk_100m  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow_m40c
+Budget              : 15.000ns { pll_clk_100m rising@0.000ns - pll_clk_24m rising@0.000ns }
+Data Path Delay     : 0.560ns (cell 0.337ns (60%), net 0.223ns (40%))
+Clock Skew          : 0.000ns
+Logic Level         : 1 ( LUT4=1 )
+Max Fanout          : 2
+Clock Uncertainty   : 0.000ns (sdc uncertainty: 0.000ns, default uncertainty: 0.138ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[1]
+net (fo=1)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkin[0]
+GCLK                x023y039z18         0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst.clkout
+net (fo=3)                              0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_syn_1,  ../user_source/hdl_source/ua_auto_exposure.v(38)
+                                                                      pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkin
+SCLK                x023y059z2          0.000          0.000          pin: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3.clkout
+net (fo=102)                            0.000          0.000          net: gen_ae$gen_custom_ae$u_ua_auto_exposure/I_clk_created_gclkinst_auto_created_sclk_s_1_l_bk3_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/packet_reg[2]_syn_8.clk
+--------------------------------------------------------------------  ---------------
+clk2q               x014y078z3          0.126    f     0.126          pin: gen_ae$u_ae_panel/packet_reg[2]_syn_8.oqa
+net (fo=2)                              0.223          0.349          net: gen_ae$u_ae_panel/packet[2],  ../user_source/hdl_source/design_top_user.v(316)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[3]_syn_5.id
+LUT4 (reg)          x015y077z7          0.211    f     0.560       1  net: gen_ae$u_ae_panel/snapshot[2],  ../user_source/hdl_source/design_top_user.v(316)
+--------------------------------------------------------------------  ---------------
+Arrival                                                0.560               
+
+source latency                          0.000          0.000               
+port                C4                  0.000          0.000          pin: I_sys_clk
+hierarchy                               0.000          0.000          pin: I_sys_clk_syn_7.ipad
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.sg09_di
+HDIO                x033y078            0.000          0.000          pin: I_sys_clk_syn_7.di
+net (fo=3)          x043y079            0.000          0.000          net: I_sys_clk_dup_6,  ../user_source/hdl_source/design_top_user.v(351)
+                                                                      pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.refclk
+PLL                 x043y079            0.000          0.000          pin: u_PLL/ph1p_phy_pll_wrapper_25a56e5ce2f9_Inst/u_PH1P_PHY_PLL.clkc[0]
+net (fo=1)                              0.000          0.000          net: u_PLL/clk0_buf,  ../user_source/ip_source/PLL/PLL.v(32)
+                                                                      pin: u_PLL/bufg_feedback.clkin[0]
+GCLK                x023y039z19         0.000          0.000          pin: u_PLL/bufg_feedback.clkout
+net (fo=4)                              0.000          0.000          net: gen_ae$gen_mode_ctrl$u_ua_mode_ctrl/I_clk,  ../user_source/hdl_source/ua_mode_ctrl.v(22)
+                                                                      pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkin
+SCLK                x023y059z3          0.000          0.000          pin: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4.clkout
+net (fo=14)                             0.000          0.000          net: u_PLL/bufg_feedback_auto_created_sclk_s_1_l_bk4_sclk_outnet,  NOFILE(0)
+                                                                      pin: gen_ae$u_ae_panel/snapshot_reg[3]_syn_5.clk
+constraint delay                       15.000         15.000               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.064         14.936               
+clock uncertainty                       0.000         14.936               
+clock pessimism                         0.000         14.936               
+--------------------------------------------------------------------  ---------------
+Required                                              14.936               
+--------------------------------------------------------------------  ---------------
+Slack                                                 14.376               
+
+
+
+Min Paths
+----------------------------------------------------------------------------------------------------
+
+
+
+

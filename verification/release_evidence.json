@@ -1,21 +1,25 @@
 {
-  "status": "INDEPENDENT_FLASH_AUDIT_PASS_COLD_BOOT_PENDING",
-  "time": "2026-10-24T20:34:09.177901+08:00",
+  "version": "v101r1",
+  "fpga": "firmware/camera_hdmi_v101r1_diagnostics_fps_fpga.bit",
+  "fpga_sha256": "f63336687c7730065b52799ae6111206aa1a1e2f5c90d55fe45d30cb21095d46",
+  "flash": "firmware/camera_hdmi_v101r1_diagnostics_fps_fpga_mcu_flash.bit",
+  "flash_sha256": "66fa3477378ea872c7782cbe5e4d1952ff661afb9d1fb0057a20dbf347f8fab6",
+  "mcu_version": 95,
+  "mcu_sha256": "965651c38b5adb842bbc6402b001bfb9683e2047552f9c189d96668910c69736",
   "resources": {
-    "slice": 19777,
+    "slice": 19910,
     "eram": 108,
     "dsp": 31
   },
   "slack": {
-    "SWNS": 0.112,
+    "SWNS": 0.122,
     "HWNS": 0.02,
     "STNS": 0.0,
     "HTNS": 0.0
   },
-  "fpga_sha256": "0f411f5c53c3b368dc3adf35268e80d5d3564cc640f418d90ec847dcccfbe40e",
-  "flash_sha256": "a8d16b5b1782a239ee39e3dc473531a34a73526cbd9ee4ab18dad194c208c446",
-  "source_files_verified": 703,
-  "mcu_version": 83,
-  "motor_enabled": false,
-  "board_quality_verified": false
+  "confidence": "Routed",
+  "flash_program_verified": true,
+  "programmed_at": "2026-10-26T22:08:03+08:00",
+  "provenance": "Built and programmed from the maintained source workspace; matching maintained RTL copied into this repository",
+  "motor_default": "OFF"
 }

@@ -522,6 +522,8 @@ module design_top_user (
     wire        S_lat_write_start, S_lat_read_start;
     wire [1:0]  S_lat_write_slot, S_lat_read_slot;
     wire        S_latency_valid;
+    wire [7:0] S_in_fps_bcd,S_out_fps_bcd;
+    wire S_second_tick,S_pixel_underflow,S_display_frame_end;
     wire [15:0] S_latency_ms;
     wire        S_hdmi_pixel_clk;
     wire        S_hdmi_serial_clk;
@@ -1234,6 +1236,7 @@ wire S_target_enable, S_target_uart;
 wire [95:0] S_aruco_rgb;
 wire S_aruco_valid,S_aruco_sof,S_aruco_eol;
 wire S_aruco_display_valid;
+wire S_aruco_display_update;
 wire [166:0] S_aruco_display_axes;
 wire [11:0] S_aruco_display_id_bcd;
 wire [21:0] S_aruco_display_corner0,S_aruco_display_corner1;
@@ -1252,7 +1255,7 @@ ua_tracking_mcu #(.ENABLE_ARUCO(1),.IMG_WIDTH(IMG_WIDTH),.IMG_HEIGHT(IMG_HEIGHT)
     .video_valid(S_aruco_valid),.video_sof(S_aruco_sof),.video_eol(S_aruco_eol),
     .aruco_enable(S_detect_en_btn[1]),
     .display_clk(S_hdmi_pixel_clk),.display_rst_n(S_hdmi_rst_n),
-    .O_aruco_valid(S_aruco_display_valid),.O_aruco_id_bcd(S_aruco_display_id_bcd),
+    .O_aruco_update(S_aruco_display_update),.O_aruco_valid(S_aruco_display_valid),.O_aruco_id_bcd(S_aruco_display_id_bcd),
     .O_aruco_axes(S_aruco_display_axes),
     .O_aruco_corner0(S_aruco_display_corner0),.O_aruco_corner1(S_aruco_display_corner1),
     .O_aruco_corner2(S_aruco_display_corner2),.O_aruco_corner3(S_aruco_display_corner3),
@@ -1672,6 +1675,7 @@ end
 
     // [读 DDR] 读取完整帧到显示端，解耦相机写入和 HDMI 读取，避免直接撕裂。
     video_out u_video_out(
+        .O_pixel_underflow(S_pixel_underflow),
         .O_meta_start        (S_lat_read_start),
         .O_meta_slot         (S_lat_read_slot),
         .I_rst_n             ( S_video_out_rst_n    ),
@@ -1770,7 +1774,7 @@ end
     generate
     if (ENABLE_LAT_DIAG != 0) begin : gen_latency
     // Current 720p HDMI PLL is ~75.002 MHz, not the old 52 MHz mode.
-    ua_frame_latency #(.PIXEL_HZ(75000000)) u_frame_latency (
+    ua_frame_latency #(.PIXEL_HZ(75000000),.FPS_ENABLE(1),.IMG_HEIGHT(IMG_HEIGHT)) u_frame_latency (
         .I_rst_n(S_hdmi_rst_n),
         .I_camera_clk(S_csi_rx_clk), .I_raw_start(S_raw_tuser),
         .I_ddr_clk(S_ddr_clk),
@@ -1778,9 +1782,12 @@ end
         .I_write_word(S_vi_ddr_wr_en),
         .I_read_start(S_lat_read_start), .I_read_slot(S_lat_read_slot),
         .I_pixel_clk(S_hdmi_pixel_clk), .I_display_start(S_hdmi_user),
+        .I_display_end(S_display_frame_end),.I_underflow(S_pixel_underflow),
+        .O_in_fps_bcd(S_in_fps_bcd),.O_out_fps_bcd(S_out_fps_bcd),.O_second_tick(S_second_tick),
         .O_valid(S_latency_valid), .O_delay_ms(S_latency_ms)
     );
     end else begin : gen_no_latency
+        assign S_in_fps_bcd=0;assign S_out_fps_bcd=0;assign S_second_tick=0;
         assign S_latency_valid = 1'b0;
         assign S_latency_ms = 16'd0;
     end
@@ -1809,6 +1816,7 @@ end
     generate
     if (ENABLE_OSD_DIAG != 0) begin : gen_osd
     hdmi_mixer_user #(
+        .STREAM_DIAG_ENABLE(1),
         .MOTION_OVERLAY_ENABLE(1),
         .DIGIT_AUTO_ENABLE(1),
         .H_OFFSET   ( 0    ),
@@ -1825,6 +1833,9 @@ end
         .I_video_de      ( S_hdmi_de          ),
         .I_video_user    ( S_hdmi_user        ),
         .I_video_last    ( S_hdmi_last        ),
+        .O_frame_end_observe(S_display_frame_end),
+        .I_in_fps_bcd(S_in_fps_bcd),.I_out_fps_bcd(S_out_fps_bcd),.I_second_tick(S_second_tick),
+        .I_aruco_update(gen_ae.S_aruco_display_update),
         .I_debug_status  ( S_hdmi_debug_status),
         .I_algo_mode     ( gen_ae.S_algo_mode_s1    ),
         .I_motion_valid  ( gen_ae.S_motion_valid_pe ),
@@ -1889,6 +1900,7 @@ end
         .O_hdmi_clean_data( S_hdmi_clean_data )
     );
     end else begin : gen_no_osd
+        assign S_display_frame_end = 1'b0;
         // Diagnostic video passthrough: retain the DDR read request and VTC
         // timing while removing only the optional OSD arithmetic.
         assign S_hdmi_window_rd_en = S_hdmi_de;

@@ -102,11 +102,18 @@ module ua_track_detect #(
     // 继续负责抑制近灰噪声。
     wire color_ok = (max_rgb >= VALUE_MIN) && (chroma >= CHROMA_MIN) &&
                     (({chroma,1'b0} + {1'b0,chroma}) >= {2'b00,max_rgb});
-    wire is_t0 = color_ok && red_dom && r_ge_g && !b_ge_r &&
-                 ({gb_delta,1'b0} <= {1'b0,chroma});
+    // v99: red objects need S>=1/2. Keep the original hue sector so
+    // dark red print is retained; warm low-saturation skin loses red eligibility.
+    wire red_saturated = ({chroma,1'b0} > {2'b00,max_rgb});
+    // Blue print is desaturated by the ISP; relax S only for blue, retaining
+    // chroma and both dominant-channel tests (not a global noise relaxation).
+    wire blue_ok = (max_rgb >= VALUE_MIN) && (chroma >= CHROMA_MIN) &&
+                   ({chroma,2'b00} >= {3'b000,max_rgb});
+    wire is_t0 = color_ok && red_saturated && red_dom && r_ge_g && !b_ge_r &&
+                 (({gb_delta,1'b0}+{1'b0,gb_delta}) <= {1'b0,chroma});
     wire is_t1 = color_ok && green_dom && !r_ge_g && g_ge_b &&
                  ({br_delta,1'b0} <= {1'b0,chroma});
-    wire is_t2 = color_ok && blue_dom && (diff_br>9'sd0) && !g_ge_b &&
+    wire is_t2 = blue_ok && blue_dom && (diff_br>9'sd0) && !g_ge_b &&
                  ({rg_delta,1'b0} <= {1'b0,chroma});
 
     // ---- 坐标 + 每通道双色候选区域 ----
@@ -145,12 +152,16 @@ module ua_track_detect #(
 
     // 区域有效性：至少达到最小面积，且命中面积 / bbox 面积 >= 3/8。
     // 使用 a*8 >= bbox*3，复用已流水寄存的 a8，仅增加移位加法，过滤稀疏噪点。
+    // v100: a rotated bar occupies little of its axis-aligned box. Only a
+    // geometrically elongated candidate may use the rotated density gate.
+    // Stored per colour in the existing EOF slots; no extra frame latency.
+    reg bar_dense0, bar_dense1, bar_dense2;
     wire filt_v0 = s_v0 && (s_a0 >= MIN_AREA_G) &&
-                   (c_a80 >= c_ba38_0);
+                   ((c_a80 >= c_ba38_0) || bar_dense0);
     wire filt_v1 = s_v1 && (s_a1 >= MIN_AREA_G) &&
-                   (c_a81 >= c_ba38_1);
+                   ((c_a81 >= c_ba38_1) || bar_dense1);
     wire filt_v2 = s_v2 && (s_a2 >= MIN_AREA_G) &&
-                   (c_a82 >= c_ba38_2);
+                   ((c_a82 >= c_ba38_2) || bar_dense2);
 
     wire [10:0] center_xg0 = ({1'b0,s_x0} + {1'b0,s_xm0} + 11'd1) >> 1;
     wire [10:0] center_xg1 = ({1'b0,s_x1} + {1'b0,s_xm1} + 11'd1) >> 1;
@@ -200,8 +211,11 @@ module ua_track_detect #(
             if (a >= b) begin big_v = a; low_v = b; end
             else begin big_v = b; low_v = a; end
             big2   = {2'b00, big_v, 1'b0};
-            // 2:1 作为长条门限；四方向最小框把旋转误差限制在约 11.25°。
-            F_elongated = (low_v == 0) || (big2 > {1'b0,low_v,2'b00});
+            // Only 0/22.5/45-degree frames are stored. In the missing
+            // 67.5-degree sector, a true 4:1 bar can project as about 1.66:1.
+            // Use 3:2 projected aspect, not the physical object's 2:1 limit.
+            F_elongated = (low_v == 0) ||
+                (big2 > ({2'b00,low_v,1'b0}+{3'b000,low_v}));
         end
     endfunction
 
@@ -322,6 +336,11 @@ module ua_track_detect #(
     wire [1:0] class_result = classify_rot(class_box0, class_box45, class_box22,
                                             class_wp, class_du, class_dv, class_h,
                                             class_dp, class_dq, class_area,class_area232,class_minimum5,1'b1);
+    // Four-times covered area versus the smallest normalized projection box.
+    // Quarter density tolerates the unsampled 67.5-degree sector for thin
+    // bars, while the original axis-density filter remains for other shapes.
+    wire class_bar_dense = (class_result == 2'd2) &&
+                           ({1'b0,class_area232,2'b00} >= class_minimum);
 
     // RGB 求均值/阈值判定先打一拍，避免它与候选区域更新、帧末过滤形成
     // 一条超长组合路径。x_d/y_d 与判定结果严格同拍。
@@ -523,6 +542,7 @@ module ua_track_detect #(
         if (!I_rst_n) begin
             fe_d <= 9'd0;
             shape_cand0 <= 2'd3; shape_cand1 <= 2'd3; shape_cand2 <= 2'd3;
+            bar_dense0 <= 1'b0; bar_dense1 <= 1'b0; bar_dense2 <= 1'b0;
             c_w0 <= 0; c_w1 <= 0; c_w2 <= 0;
             c_h0 <= 0; c_h1 <= 0; c_h2 <= 0;
             c_ba0 <= 0; c_ba1 <= 0; c_ba2 <= 0;
@@ -548,9 +568,9 @@ module ua_track_detect #(
         end else begin
             fe_d <= {fe_d[7:0], blob_done0};
             O_track_valid <= 1'b0;
-            if (fe_d[5]) shape_cand0 <= class_result;
-            if (fe_d[6]) shape_cand1 <= class_result;
-            if (fe_d[7]) shape_cand2 <= class_result;
+            if (fe_d[5]) begin shape_cand0 <= class_result; bar_dense0 <= class_bar_dense; end
+            if (fe_d[6]) begin shape_cand1 <= class_result; bar_dense1 <= class_bar_dense; end
+            if (fe_d[7]) begin shape_cand2 <= class_result; bar_dense2 <= class_bar_dense; end
 
             if (fe_d[0]) begin
                 // w/h 减法 (s_* 寄存器出发, 1 级) — 供 fe_d[1] 乘法用
@@ -746,10 +766,10 @@ module ua_blob_bank3_eram(
  wire write_descriptor=p_valid && p_hit;
  wire[343:0] current_pair=(forward_valid && forward_ch==p_ch)?forward_pair:read_pair;
  wire[171:0]a=current_pair[343:172],b=current_pair[171:0];
- wire match0=v0[p_ch] && ({1'b0,py}<={1'b0,a[131:122]}+11'd1) &&
+ wire match0=v0[p_ch] && ({1'b0,py}<={1'b0,a[131:122]}+11'd2) &&
   py>=a[151:142] && ({1'b0,px}+11'd1>={1'b0,a[171:162]}) &&
   ({1'b0,px}<={1'b0,a[161:152]}+11'd1);
- wire match1=v1[p_ch] && ({1'b0,py}<={1'b0,b[131:122]}+11'd1) &&
+ wire match1=v1[p_ch] && ({1'b0,py}<={1'b0,b[131:122]}+11'd2) &&
   py>=b[151:142] && ({1'b0,px}+11'd1>={1'b0,b[171:162]}) &&
   ({1'b0,px}<={1'b0,b[161:152]}+11'd1);
  wire target1=p_sof?1'b0:match0?1'b0:match1?1'b1:!v0[p_ch]?1'b0:!v1[p_ch]?1'b1:
@@ -838,10 +858,10 @@ module ua_blob_bank3_legacy(
  reg[2:0]v0,v1;reg emit_pending;
  wire[1:0]ch=I_hit[0]?2'd0:I_hit[1]?2'd1:2'd2;
  wire[171:0]a=slot0[ch],b=slot1[ch];
- wire match0=v0[ch] && ({1'b0,I_y}<={1'b0,a[131:122]}+11'd1) &&
+ wire match0=v0[ch] && ({1'b0,I_y}<={1'b0,a[131:122]}+11'd2) &&
    I_y>=a[151:142] && ({1'b0,I_x}+11'd1>={1'b0,a[171:162]}) &&
    ({1'b0,I_x}<={1'b0,a[161:152]}+11'd1);
- wire match1=v1[ch] && ({1'b0,I_y}<={1'b0,b[131:122]}+11'd1) &&
+ wire match1=v1[ch] && ({1'b0,I_y}<={1'b0,b[131:122]}+11'd2) &&
    I_y>=b[151:142] && ({1'b0,I_x}+11'd1>={1'b0,b[171:162]}) &&
    ({1'b0,I_x}<={1'b0,b[161:152]}+11'd1);
  wire target1=I_sof?1'b0:match0?1'b0:match1?1'b1:!v0[ch]?1'b0:!v1[ch]?1'b1:

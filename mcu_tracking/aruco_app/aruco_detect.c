@@ -58,10 +58,13 @@ static int transform(const ua_aruco_point *q,float *m)
     m[3]=q[1].y-q[0].y+g*q[1].y;m[4]=q[3].y-q[0].y+h*q[3].y;m[5]=q[0].y;
     m[6]=g;m[7]=h;return 1;
 }
+#if defined(__GNUC__) && !defined(__clang__)
+__attribute__((optimize("Os")))
+#endif
 static void verify_component(ua_aruco_detector *d)
 {
     ua_aruco_point p[16],hull[32],q[4],v;
-    unsigned i,j,n=0,k=0,lower;float m[8];uint64_t cells=0;
+    unsigned i,j,n=0,k=0,lower;float m[8];uint64_t cells=0;unsigned attempt;uint8_t gray[36];ua_aruco_id code;
     if(d->overflow || d->area<24 || d->area>d->width*d->height/2)return;
     for(i=0;i<16;i++) {
         v=d->extreme[i];
@@ -78,31 +81,63 @@ static void verify_component(ua_aruco_detector *d)
     while(k>4){float best=1e30f;unsigned remove=0;for(i=0;i<k;i++){float a=fabsf(cross(hull[(i+k-1)%k],hull[i],hull[(i+1)%k]));if(a<best){best=a;remove=i;}}for(i=remove;i+1<k;i++)hull[i]=hull[i+1];k--;}
     for(i=0;i<4;i++) {
         float dx,dy;q[i]=hull[i];v=hull[(i+1)%4];dx=v.x-q[i].x;dy=v.y-q[i].y;
-        if(q[i].x<1 || q[i].y<1 || q[i].x>=d->width-1 || q[i].y>=d->height-1 || dx*dx+dy*dy<144)return;
-        if(cross(hull[i],hull[(i+1)%4],hull[(i+2)%4])<16)return;
+        if(q[i].x<1 || q[i].y<1 || q[i].x>=d->width-1 || q[i].y>=d->height-1 || dx*dx+dy*dy<64)return;
+        if(cross(hull[i],hull[(i+1)%4],hull[(i+2)%4])<8)return;
     }
     if(++d->candidates>32 || !transform(q,m))return;
-    for(i=0;i<36;i++) {
-        unsigned white=0,a,b;
-        for(a=0;a<3;a++)for(b=0;b<3;b++) {
-            float u=((float)(i%6)+0.3f+0.2f*b)/6.0f;
-            float v0=((float)(i/6)+0.3f+0.2f*a)/6.0f;
-            float denom=m[6]*u+m[7]*v0+1.0f;
-            int x,y;if(denom<=0.01f)return;
-            x=(int)((m[0]*u+m[1]*v0+m[2])/denom+0.5f);
-            y=(int)((m[3]*u+m[4]*v0+m[5])/denom+0.5f);
-            if(x<0 || y<0 || (unsigned)x>=d->width || (unsigned)y>=d->height)return;
-            white+=(d->pixel(d->context,(unsigned)x,(unsigned)y)>>4)>d->threshold;
+    /* Preserve the original strict decode first. Retry once using a locally
+     * measured threshold and half-pixel-expanded raster extrema. Both paths
+     * still require an intact black border and zero dictionary bit errors. */
+    code.valid=0;
+    for(attempt=0;attempt<2 && !code.valid;attempt++) {
+        unsigned low=15,high=0;
+        if(attempt) {
+            float x=0,y=0,side=10000;
+            for(i=0;i<4;i++) {
+                float dx=q[i].x-q[(i+1)%4].x,dy=q[i].y-q[(i+1)%4].y;
+                float length2=dx*dx+dy*dy;
+                x+=q[i].x*.25f;y+=q[i].y*.25f;
+                if(length2<side)side=length2;
+            }
+            side=1.0f/sqrtf(side);
+            for(i=0;i<4;i++) {
+                q[i].x+=(q[i].x-x)*side;q[i].y+=(q[i].y-y)*side;
+                if(q[i].x<1 || q[i].y<1 || q[i].x>=d->width-1 || q[i].y>=d->height-1)return;
+            }
+            if(!transform(q,m))return;
         }
-        if(white>=5)cells|=(uint64_t)1u<<i;
+        cells=0;
+        for(i=0;i<36;i++) {
+            unsigned sum=0,a,b;
+            for(a=0;a<3;a++)for(b=0;b<3;b++) {
+                float u=((float)(i%6)+0.3f+0.2f*b)/6.0f;
+                float v0=((float)(i/6)+0.3f+0.2f*a)/6.0f;
+                float denom=m[6]*u+m[7]*v0+1.0f;
+                int x,y;unsigned value;if(denom<=0.01f)return;
+                x=(int)((m[0]*u+m[1]*v0+m[2])/denom+0.5f);
+                y=(int)((m[3]*u+m[4]*v0+m[5])/denom+0.5f);
+                if(x<0 || y<0 || (unsigned)x>=d->width || (unsigned)y>=d->height)return;
+                value=d->pixel(d->context,(unsigned)x,(unsigned)y)>>4;
+                sum+=attempt?value:(value>d->threshold);
+            }
+            if(attempt) {
+                unsigned mean=(sum+4)/9;gray[i]=(uint8_t)mean;
+                if(mean<low)low=mean;
+                if(mean>high)high=mean;
+            } else if(sum>=5)cells|=(uint64_t)1u<<i;
+        }
+        if(attempt) {
+            if(high-low<2)return;
+            for(i=0;i<36;i++)if(2u*gray[i]>low+high)cells|=(uint64_t)1u<<i;
+        }
+        code=ua_aruco_decode(cells,0);
     }
-    // Start in strict mode: do not trade unknown-scene false positives for
-    // single-bit repair before temporal acquisition has been implemented.
-    {ua_aruco_id code=ua_aruco_decode(cells,0);
-     if(code.valid && !d->found){d->result.code=code;d->found=1;
-         for(i=0;i<4;i++)d->result.corner[i]=q[(i+4-code.clockwise_to_canonical)%4];
-         d->result.refined_valid=ua_aruco_refine(d->pixel,d->context,d->width,d->height,q);
-         for(i=0;i<4;i++)d->result.refined_corner[i]=q[(i+4-code.clockwise_to_canonical)%4];}}
+    if(code.valid && !d->found) {
+        d->result.code=code;d->found=1;
+        for(i=0;i<4;i++)d->result.corner[i]=q[(i+4-code.clockwise_to_canonical)%4];
+        d->result.refined_valid=ua_aruco_refine(d->pixel,d->context,d->width,d->height,q);
+        for(i=0;i<4;i++)d->result.refined_corner[i]=q[(i+4-code.clockwise_to_canonical)%4];
+    }
 }
 int ua_aruco_step(ua_aruco_detector *d,unsigned budget)
 {

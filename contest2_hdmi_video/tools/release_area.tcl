@@ -16,8 +16,8 @@ set IpADCList {ddr2 ../user_source/hdl_source/ph1p35_ddr/ddr2/src/adc/ddr2.adc}
 set IpSDCList {ddr2 ../user_source/hdl_source/ph1p35_ddr/ddr2/src/sdc/ddr2.sdc w128_d512_fifo ../user_source/ip_source/w128_d512_fifo/w128_d512_fifo.tcl}
 set alRun syn_1
 if {[catch {
- set synWildParams {rtl adder_mux_unsharing off gate opt_area high gate pack_effort high}
+ set synWildParams {rtl adder_mux_unsharing off gate opt_area high gate pack_effort high place seed 1}
  source [file join $env(ANLOGIC_TD_HOME) doc scripts DefaultFlow.tcl]
-} issue]} {puts stderr "HDMI_V94_AREA_FAILED $issue";exit 1}
-puts HDMI_V94_AREA_FLOW_COMPLETE
+} issue]} {puts stderr "HDMI_V101R1_AREA_FAILED $issue";exit 1}
+puts HDMI_V101R1_AREA_FLOW_COMPLETE
 exit 0

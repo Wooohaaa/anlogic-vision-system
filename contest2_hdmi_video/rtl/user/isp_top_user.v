@@ -695,7 +695,7 @@ ua_color_balance_compat #(
         .VALUE_MIN       (8'd40),
         .CHROMA_MIN      (8'd24),
         .DOMINANCE_MIN   (8'd4),
-        .MIN_AREA_G      (18'd12),
+        .MIN_AREA_G      (18'd48),
         .LOSS_HOLD_FRAMES(2'd2),
         .FAST_TRACK_ENABLE(0),.FAST_TRACK_PIXELS(8)
     ) u_ua_track (
