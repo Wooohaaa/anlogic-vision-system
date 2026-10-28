@@ -1,5 +1,5 @@
 {
-  "created": "2026-10-28T02:18:24.765124+00:00",
+  "created": "2026-10-28T04:04:35.505139+00:00",
   "sha256": {
     ".gitattributes": "329dbd1916538edf8f272e738d97d9009a170e0e02d2106f89ecb8cc7a7c5a8e",
     ".gitignore": "111d16d13ba29b9a9012fdc8d94d37ea8a8c63b63868387ace91a23a724e6c91",
@@ -889,7 +889,7 @@
     "contest2_hdmi_video/tools/test_digit_v94.py": "da152b6506e9b11521fae2ac91706aa3686a7106973929db395aa8cb16136f1b",
     "docs/操作与部署.md": "ccc2b56edee9ef0c785686b957639a71c12fd694422412dbc49d39fdcf1e9162",
     "docs/系统设计说明.md": "3673d97b21b3be0593f44be994ccbaec5bfaa406565c7d8309cc95be77866cfd",
-    "docs/赛题二技术文档_实时图像处理与视觉交互系统.docx": "7c7e94adef392af11a5a33023aedc2a8ce3593942575f6a33b8253d69475bcab",
+    "docs/赛题二技术文档_实时图像处理与视觉交互系统.docx": "9ad9c0d2cbc65c4bf7c7035cf447e15be359ff64441a6bdb2a132c1451d7cb32",
     "examples/digit_cards.html": "98235d96cb5d167323ab3475396604d013a26a8d2d019addcbb2abdeb9a9966e",
     "firmware/boot/boot.bin": "1039b54f4eb85947691d85d2a5ef7000bd4d5f239fc8bd859d0f11985950ebdb",
     "firmware/boot/payload.bin": "d9166d8a37e3d4c505416ede9584f2c97689357a4620d9c8739fb1e69b53dd0a",
