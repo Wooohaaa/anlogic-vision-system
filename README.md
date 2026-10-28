@@ -54,11 +54,11 @@ flowchart LR
 
 | 项目 | 实现结果 |
 | --- | --- |
-| Slice | **19879 / 21216** |
+| Slice | **19945 / 21216** |
 | ERAM | **108 / 108** |
 | DSP | **31 / 40** |
 | 最终时序 | **Routed** |
-| Setup / Hold 最差裕量 | **+0.119 ns / +0.020 ns** |
+| Setup / Hold 最差裕量 | **+0.137 ns / +0.020 ns** |
 | Setup / Hold 总负裕量 | **0 / 0** |
 
 当前固件位于 [`firmware/`](firmware/)，资源与时序报告位于 [`verification/`](verification/)。

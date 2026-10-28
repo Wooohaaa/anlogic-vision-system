@@ -119,7 +119,7 @@ def main():
  elif a=='flash-image':flash_image()
  elif a=='test':
   (FPGA/'tmp').mkdir(exist_ok=True)
-  run([sys.executable,'tools/test_digit_v106.py'],FPGA)
+  run([sys.executable,'tools/test_digit.py'],FPGA)
   for top,source,marker in [('tb_stream_fps_v101','host/tests/tb_stream_fps_v101.sv','STREAM_FPS_V101_PASS'),
       ('tb_latency_frames_v101','host/tests/tb_latency_frames_v101.sv','LATENCY_FRAMES_V101_PASS')]:
    exe=FPGA/f'tmp/{top}.vvp'

@@ -648,6 +648,13 @@ module ua_digit_recognizer #(
                             stable_digit==result_digit && stable_run>=2)begin
                             held_valid<=1;held_age<=0;held_digit<=result_digit;
                             held_confidence<={2'd0,result_second_distance}-{2'd0,result_best_distance};
+                        end else if(feature_quality && result_best_distance<=6 &&
+                            result_second_distance-result_best_distance>=MIN_MARGIN &&
+                            result_digit!=held_digit)begin
+                            // A confident contradictory observation is a card
+                            // change, not a missed frame. Clear stale display
+                            // while the new class collects its own votes.
+                            held_valid<=0;held_age<=0;
                         end else if(held_valid && held_age<5)begin
                             O_digit_valid<=1;O_digit_id<=held_digit;O_digit_confidence<=held_confidence;
                             held_age<=held_age+1'b1;

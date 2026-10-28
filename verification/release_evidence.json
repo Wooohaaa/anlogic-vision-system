@@ -3,23 +3,23 @@
   "flash": "firmware/camera_system_flash.bit",
   "mcu": "firmware/mcu_app.elf",
   "resources": {
-    "slice": 19879,
+    "slice": 19945,
     "eram": 108,
     "dsp": 31
   },
   "slack": {
-    "SWNS": 0.119,
+    "SWNS": 0.137,
     "HWNS": 0.02,
     "STNS": 0.0,
     "HTNS": 0.0
   },
   "confidence": "Routed",
   "flash_program_verified": true,
-  "programmed_at": "2026-10-27T23:14:02.620997+08:00",
+  "programmed_at": "2026-10-28T12:28:01.370419+08:00",
   "motor_default": "OFF",
   "sha256": {
-    "firmware/camera_system_flash.bit": "8f5e3d9f28dfa33d09db89a7c2ac1463d07a9921e93298104e36e3febf761e13",
-    "firmware/camera_system_fpga.bit": "ba77141fad9cf61f6fd6de3a9ea43af48cb0fbbcd94bc6e6de7c13811216a65e",
+    "firmware/camera_system_flash.bit": "bcf14a04a23352acd2eeda47b41c453ea382df672e270d8038b3b68572e19491",
+    "firmware/camera_system_fpga.bit": "19ef78005866f28b0e0af617424c71d3433a6441c1084a1bce0d97ae81e17310",
     "firmware/mcu_app.elf": "1d905888740d84c00620cfce9c99ceb23e07e2191cfed97cbf0a4dec6a31adcc",
     "firmware/boot/boot.bin": "1039b54f4eb85947691d85d2a5ef7000bd4d5f239fc8bd859d0f11985950ebdb",
     "firmware/boot/payload.bin": "d9166d8a37e3d4c505416ede9584f2c97689357a4620d9c8739fb1e69b53dd0a"
