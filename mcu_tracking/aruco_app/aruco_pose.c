@@ -165,15 +165,19 @@ int ua_aruco_axes_preview(const ua_aruco_point p[4],unsigned width,unsigned heig
         float dx=p[j].x-p[i].x,dy=p[j].y-p[i].y;
         side+=sqrtf(dx*dx+dy*dy)*.25f;
     }
-    /* Exact square homography under a correct K has orthogonal equal-length
-     * columns. Large inconsistencies indicate wrong K/shape or bad corners. */
-    if(side<40 || quality[0]>.12f || quality[1]<.85f || quality[1]>1.18f)return 1;
+    /* This is a nominal-K preview sampled on an 8-pixel grid, not an exact-K
+     * homography. The old 0.12 / 0.85..1.18 column gate rejected usable small
+     * markers before their image residual could be tested. Keep only a gross
+     * degeneracy precheck; the bounded rigid-square fit below is decisive. */
+    if(side<40 || quality[0]>.6f || quality[1]<.5f || quality[1]>2.0f)return 1;
     memset(&model,0,sizeof(model));
     /* Internal assumed display model ONLY. Never stored in pose_camera and
      * never publishes a calibrated flag, metric translation or pose_result. */
     model.calibrated=1;model.width=width;model.height=height;
     model.fx=model.fy=focal_px;model.cx=(width-1)*.5f;model.cy=(height-1)*.5f;
-    model.side_m=1;model.max_rms_px=fmaxf(2.0f,side*.01f);
+    /* Half one snapshot pixel (4 display pixels) is the residual floor. This
+     * accepts sampling uncertainty, not arbitrary normals or a fixed ray. */
+    model.side_m=1;model.max_rms_px=fmaxf(4.0f,side*.01f);
     if(pose_solve_bounded(&model,p,ws,&fit,6)!=UA_POSE_OK)return 1;
     x=fit.translation[0]+fit.rotation[2]*.5f;
     y=fit.translation[1]+fit.rotation[5]*.5f;
@@ -182,7 +186,7 @@ int ua_aruco_axes_preview(const ua_aruco_point p[4],unsigned width,unsigned heig
     step_x=focal_px*x/z+model.cx-out[0].x;
     step_y=focal_px*y/z+model.cy-out[0].y;
     length=step_x*step_x+step_y*step_y;
-    if(!isfinite(length)||length<64)return 1; /* near-frontal sub-8px cue */
+    if(!isfinite(length)||length<9)return 1; /* near-frontal sub-3px cue */
     if(out[0].x+step_x<0)clip=fminf(clip,-out[0].x/step_x);
     if(out[0].x+step_x>width-1)clip=fminf(clip,(width-1-out[0].x)/step_x);
     if(out[0].y+step_y<0)clip=fminf(clip,-out[0].y/step_y);

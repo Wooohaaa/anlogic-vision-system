@@ -392,48 +392,7 @@ module hdmi_mixer_user #(
         S_fps_display_units=I_out_fps_bcd[3:0];S_fps_display_tens=I_out_fps_bcd[7:4];
       end
     end endgenerate
-    // Compact status beside FPS: 0=off, ?=no publication yet, -=no target,
-    // V=valid target, S=no publication for two one-second ticks. Following hex digit
-    // is coarse seconds since publication (3=3 or more). No detection
-    // result or video path is gated by these diagnostic registers.
-    wire [4:0] diag_enable={I_motion_enable,I_aruco_enable,I_digit_enable,I_hand_enable,I_track_enable};
-    wire [4:0] diag_event={I_motion_view_valid,I_aruco_update,I_digit_view_valid,I_hand_valid,I_track_valid};
-    wire [4:0] diag_target={I_motion_view[51] && !I_motion_view[52],I_aruco_valid,I_digit_view[56],
-                           I_hand_box_valid && I_hand_id!=0,|{I_t0_v,I_t1_v,I_t2_v}};
-    reg [4:0] diag_seen;
-    // All target banks are held between their publication pulses; do not
-    // duplicate five validity registers that already exist in those banks.
-    wire [4:0] diag_result=diag_target;
-    reg [1:0] diag_age[0:4];
-    integer diag_i;
-    generate if(STREAM_DIAG_ENABLE!=0)begin: gen_diag
-      always @(posedge I_clk or negedge I_rst_n)begin
-        if(!I_rst_n)begin
-          diag_seen<=0;
-          for(diag_i=0;diag_i<5;diag_i=diag_i+1)diag_age[diag_i]<=0;
-        end else for(diag_i=0;diag_i<5;diag_i=diag_i+1)begin
-          if(!diag_enable[diag_i])begin
-            diag_seen[diag_i]<=0;diag_age[diag_i]<=0;
-          end else if(diag_event[diag_i])begin
-            diag_seen[diag_i]<=1;diag_age[diag_i]<=0;
-          end else if(I_second_tick && diag_age[diag_i]!=3)diag_age[diag_i]<=diag_age[diag_i]+1'b1;
-        end
-      end
-    end else begin: gen_no_diag
-      always @* begin diag_seen=I_rst_n ? 5'd0 : 5'd0;
-        for(diag_i=0;diag_i<5;diag_i=diag_i+1)diag_age[diag_i]=0;
-      end
-    end endgenerate
-    function [7:0] F_diag_state;
-      input enabled,seen,target;input [3:0] age;
-      begin
-        if(!enabled)F_diag_state="0";
-        else if(!seen)F_diag_state="?";
-        else if(age>=2)F_diag_state="S";
-        else if(target)F_diag_state="V";
-        else F_diag_state="-";
-      end
-    endfunction
+    // Only measured IN/OUT FPS is displayed; per-detector diagnostics removed.
     reg [15:0] S_motion_cnt_disp;  // 运动计数 (显示域锁存)
     // MOT 十进制显示转换器：帧末收到新计数后，在显示时钟域逐拍完成
     // 16 轮 double-dabble；S_motion_bcd_disp 只在转换完成时更新。
@@ -1675,7 +1634,7 @@ module hdmi_mixer_user #(
                 // ---- HDMI 输出帧率 OSD: "FPS:xx" 第九行 ----
                 // FPS 使用独立的两位 BCD 寄存器；字符槽保持 16px 对齐，
                 // 不把除法或长组合计数逻辑放入视频数据通路。
-                if((S_x_2d >= DYN_OSD_X) && (S_x_2d < (DYN_OSD_X + (STREAM_DIAG_ENABLE ? 12'd592 : 12'd96))) &&
+                if((S_x_2d >= DYN_OSD_X) && (S_x_2d < (DYN_OSD_X + (STREAM_DIAG_ENABLE ? 12'd192 : 12'd96))) &&
                    (S_y_2d >= DYN9_OSD_Y) && (S_y_2d < (DYN9_OSD_Y + 12'd24))) begin
                     S_dyn_x = S_x_2d - DYN_OSD_X;
                     S_dyn_y = S_y_2d - DYN9_OSD_Y;
@@ -1688,21 +1647,6 @@ module hdmi_mixer_user #(
                         6:S_pf_char="O";7:S_pf_char="U";8:S_pf_char="T";9:S_pf_char=":";
                         10:S_pf_char=F_dec_char(I_out_fps_bcd[7:4]);
                         11:S_pf_char=F_dec_char(I_out_fps_bcd[3:0]);
-                        13:S_pf_char="C";14:S_pf_char=":";
-                        15:S_pf_char=F_diag_state(diag_enable[0],diag_seen[0],diag_result[0],diag_age[0]);
-                        16:S_pf_char=F_hex_char(diag_age[0]);
-                        18:S_pf_char="H";19:S_pf_char=":";
-                        20:S_pf_char=F_diag_state(diag_enable[1],diag_seen[1],diag_result[1],diag_age[1]);
-                        21:S_pf_char=F_hex_char(diag_age[1]);
-                        23:S_pf_char="D";24:S_pf_char=":";
-                        25:S_pf_char=F_diag_state(diag_enable[2],diag_seen[2],diag_result[2],diag_age[2]);
-                        26:S_pf_char=F_hex_char(diag_age[2]);
-                        28:S_pf_char="A";29:S_pf_char=":";
-                        30:S_pf_char=F_diag_state(diag_enable[3],diag_seen[3],diag_result[3],diag_age[3]);
-                        31:S_pf_char=F_hex_char(diag_age[3]);
-                        33:S_pf_char="M";34:S_pf_char=":";
-                        35:S_pf_char=F_diag_state(diag_enable[4],diag_seen[4],diag_result[4],diag_age[4]);
-                        36:S_pf_char=F_hex_char(diag_age[4]);
                         default:S_pf_char=" ";
                       endcase
                     end else if (S_dyn_x < 12'd16)       S_pf_char = 8'h46; // F

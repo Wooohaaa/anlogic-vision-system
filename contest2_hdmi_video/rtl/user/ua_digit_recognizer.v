@@ -99,18 +99,31 @@ module ua_digit_recognizer #(
     wire [9:0] card_x0,card_x1,card_y0,card_y1;
     wire [7:0] rg=(pix0[23:16]>pix0[15:8])?(pix0[23:16]-pix0[15:8]):(pix0[15:8]-pix0[23:16]);
     wire [7:0] bg=(pix0[7:0]>pix0[15:8])?(pix0[7:0]-pix0[15:8]):(pix0[15:8]-pix0[7:0]);
-    wire [7:0] min_y01=(y0<y1)?y0:y1,min_y23=(y2<y3)?y2:y3;
-    wire [7:0] group_min_y=(min_y01<min_y23)?min_y01:min_y23;
-    reg [7:0] frame_peak,white_level;
-    wire [7:0] peak_next=I_tuser?group_min_y:((group_min_y>frame_peak)?group_min_y:frame_peak);
-    wire [7:0] peak_gate=peak_next-(peak_next>>2);
+    reg [7:0] white_level;
+    reg [1:0] white_scan;
+    reg [2:0] unconfirmed_frames;
+    reg threshold_pending;
     wire [7:0] auto_threshold=white_level-8'd32;
     wire [2:0] black_sum;
     always @(posedge I_clk or negedge I_rst_n)begin
-      if(!I_rst_n)begin frame_peak<=0;white_level<=96;end
-      else if(AUTO_FIND && I_tvalid)begin
-        frame_peak<=peak_next;
-        if(frame_end)white_level<=(peak_gate<96)?8'd96:(peak_gate>160)?8'd160:peak_gate;
+      if(!I_rst_n)begin white_level<=160;white_scan<=0;unconfirmed_frames<=0;threshold_pending<=0;end
+      else if(AUTO_FIND)begin
+        threshold_pending<=I_tvalid && frame_end;
+        // Start in the bright-card level; search bounded alternatives when
+        // lost or unconfirmed for eight frames. No full-frame peak dependency.
+        if(threshold_pending)begin
+          if(!card_found || (!held_valid && unconfirmed_frames==7))begin
+            unconfirmed_frames<=0;
+            white_scan<=white_scan+2'd1;
+            case(white_scan)
+              0:white_level<=96;
+              1:white_level<=128;
+              2:white_level<=160;
+              3:white_level<=80;
+            endcase
+          end else if(held_valid)unconfirmed_frames<=0;
+          else unconfirmed_frames<=unconfirmed_frames+3'd1;
+        end
       end
     end
     generate if(AUTO_FIND)begin:gen_auto_card
@@ -184,13 +197,14 @@ module ua_digit_recognizer #(
     reg [9:0] norm_x0,norm_y0,pending_x0,pending_y0;
     reg [9:0] rem_x,rem_y;
     reg [6:0] quotient_x,quotient_y,step_x,step_y;
+    reg [2:0] extra_columns;
     reg geometry_busy,geometry_ready,pending_narrow;
     // Explicit shift/add widths avoid 32-bit constant multipliers in TD.
     wire [9:0] quotient_x5={1'b0,quotient_x,2'b00}+{3'b000,quotient_x};
-    wire [10:0] narrow_start={1'b0,pending_x0}-{1'b0,quotient_x5};
+    wire [10:0] narrow_start={1'b0,pending_x0}-{1'b0,quotient_x5}-(AUTO_FIND?{8'd0,rem_x[2:0]}:11'd0);
     wire [9:0] step_x5={1'b0,step_x,2'b00}+{3'b000,step_x};
     wire [9:0] step_y7={step_y,3'b000}-{3'b000,step_y};
-    wire [10:0] norm_end_x={1'b0,norm_x0}+{1'b0,step_x5};
+    wire [10:0] norm_end_x={1'b0,norm_x0}+{1'b0,step_x5}+{8'd0,extra_columns};
     wire [10:0] norm_end_y={1'b0,norm_y0}+{1'b0,step_y7};
     wire [9:0] box_x0=AUTO_FIND?card_x0:fg_x0,box_x1=AUTO_FIND?card_x1:fg_x1;
     wire [9:0] box_y0=AUTO_FIND?card_y0:fg_y0;
@@ -208,13 +222,18 @@ module ua_digit_recognizer #(
     wire [15:0] adaptive_gate = {1'b0,norm_sample_product} + (norm_sample_product>>1);
     wire [10:0] occupancy_gate = ADAPTIVE_ROI ?
         ((adaptive_gate>=2) ? adaptive_gate[10:0] : 11'd2) : CELL_MIN;
+    // Each extra-width column gets the same 37.5% occupancy threshold,
+    // computed with one shared add rather than five new multipliers.
+    wire [14:0] wide_product=norm_sample_product+{7'd0,norm_sample_rows};
+    wire [15:0] wide_gate={1'b0,wide_product}+(wide_product>>1);
+    wire [10:0] occupancy_gate_wide=(wide_gate>=2)?wide_gate[10:0]:11'd2;
     always @(posedge I_clk or negedge I_rst_n) begin
         if(!I_rst_n) begin
             fg_seen<=0;fg_x0<=0;fg_x1<=0;fg_y0<=0;fg_y1<=0;
             row_x0<=0;row_x1<=0;row_hits<=0;
             norm_x0<=0;norm_y0<=0;pending_x0<=0;pending_y0<=0;
             rem_x<=0;rem_y<=0;quotient_x<=0;quotient_y<=0;
-            step_x<=1;step_y<=1;geometry_busy<=0;geometry_ready<=0;pending_narrow<=0;
+            extra_columns<=0;step_x<=1;step_y<=1;geometry_busy<=0;geometry_ready<=0;pending_narrow<=0;
         end else if(ADAPTIVE_ROI) begin
             if(!AUTO_FIND)begin
             if(I_tvalid && I_tuser) begin fg_seen<=0;row_hits<=0;end
@@ -241,17 +260,18 @@ module ua_digit_recognizer #(
                 geometry_busy<=bbox_good;
                 pending_x0<=desired_x0;pending_y0<=box_y0;
                 pending_narrow<=narrow_digit;
-                rem_x<=padded_width+4;rem_y<=bbox_height+6;
+                rem_x<=padded_width+(AUTO_FIND?10'd0:10'd4);rem_y<=bbox_height+6;
                 quotient_x<=0;quotient_y<=0;
             end else if(geometry_busy) begin
                 // Shared-in-time constant divisors, not parallel /5 and /7.
                 if(rem_x>=5)begin rem_x<=rem_x-5;quotient_x<=quotient_x+1'b1;end
                 if(rem_y>=7)begin rem_y<=rem_y-7;quotient_y<=quotient_y+1'b1;end
                 if(rem_x<5 && rem_y<7)begin
-                    step_x<=quotient_x;step_y<=quotient_y;
+                    step_x<=(quotient_x!=0)?quotient_x:7'd1;step_y<=quotient_y;
+                    extra_columns<=AUTO_FIND?rem_x[2:0]:3'd0;
                     norm_x0<=pending_narrow ? narrow_start[10:1] : pending_x0;
                     norm_y0<=pending_y0;
-                    geometry_busy<=0;geometry_ready<=1;
+                    geometry_busy<=0;geometry_ready<=!AUTO_FIND || quotient_x!=0;
                 end
             end
         end
@@ -271,7 +291,8 @@ module ua_digit_recognizer #(
     wire [GRID_COLS-1:0] completed_row;
     genvar gate_col;
     generate for(gate_col=0;gate_col<GRID_COLS;gate_col=gate_col+1)begin:gen_completed_row
-      assign completed_row[gate_col]=(cell_count[gate_col]>=occupancy_gate);
+      assign completed_row[gate_col]=(cell_count[gate_col]>=
+          ((AUTO_FIND && gate_col<extra_columns)?occupancy_gate_wide:occupancy_gate));
     end endgenerate
     integer reset_i;
 
@@ -289,6 +310,7 @@ module ua_digit_recognizer #(
         ((col_remaining==0) ? scan_col+3'd1 : scan_col);
     wire [2:0] raster_row = first_row ? 3'd0 :
         ((row_remaining==0) ? scan_row+3'd1 : scan_row);
+    wire [7:0] raster_width={1'b0,step_x}+((AUTO_FIND && raster_col<extra_columns)?8'd1:8'd0);
     wire inner_x = (cur_x_grp >= grid_x0) && (ADAPTIVE_ROI ?
                    raster_col<5 : cur_x_grp < grid_x0 + grid_step_x*5);
     wire inner_y = (cur_y >= grid_y0) && (ADAPTIVE_ROI ?
@@ -320,7 +342,7 @@ module ua_digit_recognizer #(
             if(I_tuser)begin scan_row<=0;row_remaining<=0;end
             if(inner_x)begin
                 scan_col<=raster_col;
-                col_remaining<=(first_column || col_remaining==0) ? step_x-1'b1 : col_remaining-1'b1;
+                col_remaining<=(first_column || col_remaining==0) ? raster_width-8'd1 : col_remaining-1'b1;
             end
             if(I_tlast && inner_y)begin
                 scan_row<=raster_row;
@@ -368,11 +390,19 @@ module ua_digit_recognizer #(
     reg [5:0]  result_best_distance;
     reg [5:0]  result_second_distance;
     reg [1:0]  stable_run;
+    reg stable_reject;
     reg [3:0]  stable_digit;
     reg [1:0]  frame_count;
     reg [9:0] template_address;
     reg [5:0] digit_best_distance;
 
+    // Closed-loop classes need vertical support through the inner rows.
+    // A wholly empty middle band cannot support 0/6/8/9; do not turn a
+    // fragmented open glyph into a confident loop merely by template distance.
+    wire closed_class=(result_digit==0 || result_digit==6 || result_digit==8 || result_digit==9);
+    wire inner_row_support=(|observed_bits[9:5]) && (|observed_bits[14:10]) &&
+        (|observed_bits[19:15]) && (|observed_bits[24:20]) && (|observed_bits[29:25]);
+    wire feature_quality=!AUTO_FIND || !closed_class || inner_row_support;
     localparam ST_IDLE   = 3'd0;
     localparam ST_FEATURE= 3'd1;
     localparam ST_HAM    = 3'd2;
@@ -441,6 +471,7 @@ module ua_digit_recognizer #(
             result_best_distance <= 6'd63;
             result_second_distance <= 6'd63;
             stable_run <= 2'd0;
+            stable_reject <= 1'b0;
             stable_digit <= 4'hf;
             frame_count <= 2'd0;
             template_address<=0;digit_best_distance<=63;
@@ -501,7 +532,7 @@ module ua_digit_recognizer #(
                     frame_count <= frame_count + 2'd1;
                 for (i = 0; i < GRID_CELLS; i = i + 1)
                     cell_snapshot_bits[i] <= (row_active && (i/GRID_COLS)==active_row) ?
-                        (cell_count[i%GRID_COLS]>=occupancy_gate) : row_feature_bits[i];
+                        (cell_count[i%GRID_COLS]>=((AUTO_FIND && (i%GRID_COLS)<extra_columns)?occupancy_gate_wide:occupancy_gate)) : row_feature_bits[i];
                 if (state == ST_IDLE)
                     state <= ST_FEATURE;
             end
@@ -574,10 +605,11 @@ module ua_digit_recognizer #(
                     O_result_event<=1;
                     if ((frame_count >= 2'd2) && (!ADAPTIVE_ROI || geometry_ready) &&
                         (!AUTO_FIND || (snapshot_geometry_good && current_card_overlaps)) &&
-                        (result_best_distance <= (AUTO_FIND?6'd6:6'd12)) &&
+                        feature_quality && (result_best_distance <= (AUTO_FIND?6'd6:6'd12)) &&
                         ((result_second_distance - result_best_distance) >= MIN_MARGIN)) begin
                         margin_value = {2'd0,result_second_distance} -
                                        {2'd0,result_best_distance};
+                        stable_reject <= 1'b0;
                         O_digit_confidence <= margin_value;
                         O_digit_id <= result_digit;
                         if ((stable_digit == result_digit) && (stable_run != 2'd3))
@@ -593,8 +625,15 @@ module ua_digit_recognizer #(
                             O_digit_id <= result_digit;
                         end
                     end else begin
-                        stable_run <= 2'd0;
-                        stable_digit <= 4'hf;
+                        // At most one rejected observation between matching
+                        // accepted votes. Never bridge missing/disjoint cards.
+                        if(AUTO_FIND && snapshot_geometry_good && current_card_overlaps &&
+                           stable_run!=0 && !stable_reject) stable_reject<=1'b1;
+                        else begin
+                            stable_run <= 2'd0;
+                            stable_digit <= 4'hf;
+                            stable_reject <= 1'b0;
+                        end
                         O_digit_id <= 4'hf;
                         O_digit_confidence <= 8'd0;
                     end
@@ -604,7 +643,7 @@ module ua_digit_recognizer #(
                     if(AUTO_FIND)begin
                         if(!snapshot_geometry_good || !current_card_overlaps)begin
                             held_valid<=0;held_age<=0;
-                        end else if(frame_count>=2 && geometry_ready && result_best_distance<=6 &&
+                        end else if(frame_count>=2 && geometry_ready && feature_quality && result_best_distance<=6 &&
                             result_second_distance-result_best_distance>=MIN_MARGIN &&
                             stable_digit==result_digit && stable_run>=2)begin
                             held_valid<=1;held_age<=0;held_digit<=result_digit;

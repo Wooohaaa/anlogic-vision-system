@@ -35,7 +35,11 @@ module ua_digit_card_locator #(
  wire[10:0]row_gap={1'b0,y}-{1'b0,cy1};
  wire[XW-1:0]merged0=(rx0<cx0)?rx0:cx0,merged1=(rx1>cx1)?rx1:cx1;
  wire[XW:0]merged_w={1'b0,merged1}-{1'b0,merged0}+1'b1;
- wire associate=cand_on && row_good && row_gap<=11'd32 && merged_w<=MAX_W;
+ // Successive stroke rows must overlap horizontally (16px tolerance).
+ // Width alone used to join unrelated background bands to the digit.
+ wire row_overlaps=({1'b0,rx1}+11'd4>={1'b0,cx0}) &&
+                   ({1'b0,cx1}+11'd4>={1'b0,rx0});
+ wire associate=cand_on && row_good && row_overlaps && row_gap<=11'd32 && merged_w<=MAX_W;
  always @(posedge clk or negedge rst_n)begin
   if(!rst_n)begin
    run_on<=0;run_two<=0;row_on<=0;cand_on<=0;best_on<=0;

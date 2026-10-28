@@ -654,6 +654,8 @@ module ua_track_detect #(
                     end
                 end else if (O_v0 && (miss0 < LOSS_HOLD_FRAMES)) begin
                     O_v0 <= 1'b1; miss0 <= miss0 + 1'b1;
+                    // A missing frame breaks consecutive class evidence.
+                    shape_wait0 <= 1'b0; shape_pending0 <= O_shape0;
                 end else begin
                     O_v0 <= 1'b0; miss0 <= miss0; O_shape0 <= 2'd3;
                     shape_pending0 <= 2'd3; shape_wait0 <= 1'b0;
@@ -686,6 +688,8 @@ module ua_track_detect #(
                     end
                 end else if (O_v1 && (miss1 < LOSS_HOLD_FRAMES)) begin
                     O_v1 <= 1'b1; miss1 <= miss1 + 1'b1;
+                    // A missing frame breaks consecutive class evidence.
+                    shape_wait1 <= 1'b0; shape_pending1 <= O_shape1;
                 end else begin
                     O_v1 <= 1'b0; miss1 <= miss1; O_shape1 <= 2'd3;
                     shape_pending1 <= 2'd3; shape_wait1 <= 1'b0;
@@ -718,6 +722,8 @@ module ua_track_detect #(
                     end
                 end else if (O_v2 && (miss2 < LOSS_HOLD_FRAMES)) begin
                     O_v2 <= 1'b1; miss2 <= miss2 + 1'b1;
+                    // A missing frame breaks consecutive class evidence.
+                    shape_wait2 <= 1'b0; shape_pending2 <= O_shape2;
                 end else begin
                     O_v2 <= 1'b0; miss2 <= miss2; O_shape2 <= 2'd3;
                     shape_pending2 <= 2'd3; shape_wait2 <= 1'b0;

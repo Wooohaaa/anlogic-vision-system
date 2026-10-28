@@ -11,7 +11,7 @@
 - **手势与数字交互**：纯 FPGA 张掌/握拳识别，以及任意位置单张数字卡 0～9 的定位与识别。
 - **ArUco 标记识别**：FPGA 与 MCU 协作完成标记识别、ID 显示、四边形描边和三维坐标轴可视化。
 - **双步进云台跟踪**：视觉目标坐标传给 MCU，驱动双轴步进云台跟踪红色球形物体。
-- **一体化 OSD**：叠加 Logo、模式、帧计数、延迟、IN/OUT 帧率及检测状态，方便现场操作与演示。
+- **一体化 OSD**：叠加 Logo、模式、帧计数、延迟、IN/OUT 输入输出帧率，方便现场操作与演示。
 
 ## 系统架构
 
@@ -46,19 +46,19 @@ flowchart LR
 
 数码管显示整体增益 index 及使能状态。电机上电默认关闭，通过 KEY2 或串口命令开启。
 
-FPS 行同时显示 `IN / OUT` 帧率与 `C / H / D / A / M` 状态，分别对应颜色形状、手势、数字、ArUco 和运动。`0` 为关闭，`?` 为等待结果，`-` 为无目标，`V` 为有效结果，`S` 为停更提示；后面的数字表示活动年龄，`3` 表示 3 秒或以上。该信息直接加入现有 FPS 行，七种图像模式保持独立。
+帧率行显示 `IN / OUT`，分别统计输入与输出的有效视频帧。数字识别采用实际宽度网格分配和闭环字形质量检查，配合同类确认稳定发布结果。
 
 ## 当前交付
 
-**FPGA v101r1 + MCU v95 联合 Flash**，支持掉电保存。2026-10-26 已通过官方 BitWriter 终端写入与校验。
+**FPGA 与板内 MCU 联合 Flash**，支持掉电保存与上电运行，已完成官方终端写入及校验。
 
 | 项目 | 实现结果 |
 | --- | --- |
-| Slice | **19910 / 21216** |
+| Slice | **19879 / 21216** |
 | ERAM | **108 / 108** |
 | DSP | **31 / 40** |
 | 最终时序 | **Routed** |
-| Setup / Hold 最差裕量 | **+0.122 ns / +0.020 ns** |
+| Setup / Hold 最差裕量 | **+0.119 ns / +0.020 ns** |
 | Setup / Hold 总负裕量 | **0 / 0** |
 
 当前固件位于 [`firmware/`](firmware/)，资源与时序报告位于 [`verification/`](verification/)。
@@ -74,12 +74,12 @@ FPS 行同时显示 `IN / OUT` 帧率与 `C / H / D / A / M` 状态，分别对�
 | `vendor/anlogic_sdk/` | MCU 构建依赖及许可声明 |
 | `tools/` | 工程校验、构建、封装与终端烧录入口 |
 | `firmware/` | 当前 FPGA、MCU 和联合 Flash 固件 |
-| `verification/` | 资源、时序与版本信息 |
+| `verification/` | 资源、时序与镜像校验信息 |
 | `docs/`、`examples/` | 技术文档、演示材料与测试卡 |
 
 ## 构建与部署
 
-环境：Windows、Python 3.11+、TD 6.2.1 Engineer、FD Release 2026.2；RTL 仿真使用 Icarus Verilog。
+环境：Windows、Python 3.11+、TD 工程师版与 FD 开发工具；RTL 仿真使用 Icarus Verilog。
 
 复制 `config.example.json` 为 `config.local.json`，填写 TD、FD 安装目录和 MCU 编译暂存目录。也可通过 `ANLOGIC_TD_HOME`、`ANLOGIC_FD_HOME` 设置工具路径。
 
@@ -103,10 +103,7 @@ python tools/repository.py program
 
 ## 文档与演示
 
-- [FPS 同行诊断设计](docs/fpga_history/DIAGNOSTICS_FPS_V101_20261026.md)
-- [旋转长条形识别设计](docs/fpga_history/BAR_ROTATION_V100_20261026.md)
-- [双步进专用引脚与接线](docs/fpga_history/STEPPER_DEDICATED_PINS_20261022.md)
-- [KEY2 云台控制](docs/fpga_history/KEY2_STEPPER_V83_20261022.md)
+- [作品技术文档](docs/赛题二技术文档_实时图像处理与视觉交互系统.docx)
+- [系统设计说明](docs/系统设计说明.md)
+- [操作与部署](docs/操作与部署.md)
 - [第三方代码与许可声明](THIRD_PARTY_NOTICES.md)
-
-作品通过 FPGA 的流式并行处理与 MCU 的控制能力协同，实现从视频采集、视觉分析到运动控制的完整链路，便于比赛现场演示与进一步拓展。

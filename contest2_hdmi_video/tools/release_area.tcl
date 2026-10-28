@@ -17,7 +17,7 @@ set IpSDCList {ddr2 ../user_source/hdl_source/ph1p35_ddr/ddr2/src/sdc/ddr2.sdc w
 set alRun syn_1
 if {[catch {
  set synWildParams {rtl adder_mux_unsharing off gate opt_area high gate pack_effort high place seed 1}
- source [file join $env(ANLOGIC_TD_HOME) doc scripts DefaultFlow.tcl]
-} issue]} {puts stderr "HDMI_V101R1_AREA_FAILED $issue";exit 1}
-puts HDMI_V101R1_AREA_FLOW_COMPLETE
+ source "$env(ANLOGIC_TD_HOME)/doc/scripts/DefaultFlow.tcl"
+} issue]} {puts stderr "HDMI_RELEASE_AREA_FAILED $issue";exit 1}
+puts HDMI_RELEASE_AREA_FLOW_COMPLETE
 exit 0
