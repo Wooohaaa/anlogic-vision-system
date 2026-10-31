@@ -101,12 +101,12 @@ def flash_image():
  assert j[js+0xe10000:js+0xe10000+len(payload)]==payload
  print('FLASH_IMAGE_VERIFIED_NOT_PROGRAMMED',target,sha(target))
 def program():
- # Explicit user command only; default verify/build/test never calls this.
- td=toolhome('td_home');bit=ROOT/'firmware/camera_system_flash.bit'
+ # Explicit user command only; use configured FutureDynasty.
+ fd=toolhome('fd_home');bit=ROOT/'firmware/camera_system_flash.bit'
  manifest=json.loads((ROOT/'PACKAGE_MANIFEST.json').read_text(encoding='utf-8'))
  assert sha(bit)==manifest['sha256'][bit.relative_to(ROOT).as_posix()]
  script=ROOT/'tools/program_flash.tcl'
- run([td/'bin/bw_commands_prompt.exe',script],ROOT,ROOT/'build/program_flash.log')
+ run([fd/'bin/bw_commands_prompt.exe',script],ROOT,ROOT/'build/program_flash.log')
  print('PREBUILT_RELEASE_FLASH_PROGRAM_VERIFY_PASS_COLD_BOOT_PENDING')
 def main():
  p=argparse.ArgumentParser(description=__doc__)

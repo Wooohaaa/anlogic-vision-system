@@ -1,27 +1,84 @@
 {
-  "fpga": "firmware/camera_system_fpga.bit",
-  "flash": "firmware/camera_system_flash.bit",
-  "mcu": "firmware/mcu_app.elf",
-  "resources": {
-    "slice": 19945,
-    "eram": 108,
-    "dsp": 31
+  "release": "R6 areaopt4 + MCU target-os r18",
+  "date": "2026-10-31",
+  "device": "PH1P35MDG324",
+  "programmer": "FutureDynasty official command line",
+  "flash": {
+    "id": "0xC8",
+    "image_bytes": 14775152,
+    "capacity_bytes": 16777216,
+    "page_program_verify": true,
+    "native_exit_code": 0,
+    "cold_boot_verified": false,
+    "uart_commands_sent": false,
+    "motor_commands_sent": false,
+    "video_replay_run_during_deployment": false,
+    "boot_bin_offset": "0xE00000",
+    "mcu_payload_offset": "0xE10000"
   },
-  "slack": {
-    "SWNS": 0.137,
-    "HWNS": 0.02,
-    "STNS": 0.0,
-    "HTNS": 0.0
+  "artifacts": {
+    "firmware/camera_system_fpga.bit": {
+      "sha256": "07521eae26c34b68ff50bd15f76fc7fd362dbfee2a39dc9a3543b95187a92ed4",
+      "bytes": 1789536
+    },
+    "firmware/camera_system_flash.bit": {
+      "sha256": "a8d67ccbd731a3e29d6dc075faf06dfb548774e9fedae09505a914512facb9c3",
+      "bytes": 14775152
+    },
+    "firmware/mcu_app.elf": {
+      "sha256": "5a51dd100ab7b56b18160908cc044564db5fe6431b06780c255d44fc93b6bc15",
+      "bytes": 256632
+    },
+    "firmware/mcu_app.bin": {
+      "sha256": "0da7b295609b3b76ab24e55b00b338cb7b8bf4a78ff6d6673cf68583ece87eac",
+      "bytes": 29120
+    },
+    "firmware/boot/payload.bin": {
+      "sha256": "287f33ea34178bf25ceac46631201e36c4ea6f574172eb68d990e0d641a58421",
+      "bytes": 29152
+    }
   },
-  "confidence": "Routed",
-  "flash_program_verified": true,
-  "programmed_at": "2026-10-28T12:28:01.370419+08:00",
-  "motor_default": "OFF",
-  "sha256": {
-    "firmware/camera_system_flash.bit": "bcf14a04a23352acd2eeda47b41c453ea382df672e270d8038b3b68572e19491",
-    "firmware/camera_system_fpga.bit": "19ef78005866f28b0e0af617424c71d3433a6441c1084a1bce0d97ae81e17310",
-    "firmware/mcu_app.elf": "1d905888740d84c00620cfce9c99ceb23e07e2191cfed97cbf0a4dec6a31adcc",
-    "firmware/boot/boot.bin": "1039b54f4eb85947691d85d2a5ef7000bd4d5f239fc8bd859d0f11985950ebdb",
-    "firmware/boot/payload.bin": "d9166d8a37e3d4c505416ede9584f2c97689357a4620d9c8739fb1e69b53dd0a"
-  }
+  "fpga": {
+    "resources": {
+      "slice": 20091,
+      "slice_capacity": 21216,
+      "eram": 103,
+      "eram_capacity": 108,
+      "dsp": 30,
+      "dsp_capacity": 40
+    },
+    "routed_timing_ns": {
+      "SWNS": 0.132,
+      "HWNS": 0.02,
+      "STNS": 0.0,
+      "HTNS": 0.0
+    },
+    "source_candidate_sha256": "37d9271bbdbd5bdd5089341d6cf90ba45b76e431958072ecf50c85cfd84682b1",
+    "candidate_integrated_into_maintained_rtl": false
+  },
+  "mcu": {
+    "build": "r18",
+    "payload_version": 95,
+    "memory_bytes": {
+      "text": 28876,
+      "data": 240,
+      "bss": 16572,
+      "stack_reserve": 2048,
+      "total": 47736,
+      "capacity": 49152,
+      "headroom": 1416
+    },
+    "runtime_tcm_cold_boot_verified": false
+  },
+  "video_suite": {
+    "clips": 17,
+    "all_passed": false,
+    "known_failures": [
+      "倾斜3误识为2",
+      "手机0和部分远距离数字漏检",
+      "倾斜ArUco漏检"
+    ],
+    "replayed_during_flash_deployment": false
+  },
+  "evidence_log": "verification/native_flash_program.log"
 }

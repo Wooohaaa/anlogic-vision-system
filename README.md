@@ -48,20 +48,21 @@ flowchart LR
 
 帧率行显示 `IN / OUT`，分别统计输入与输出的有效视频帧。数字识别采用实际宽度网格分配和闭环字形质量检查，配合同类确认稳定发布结果。
 
-## 当前交付
+## 当前交付：R6 areaopt4 + MCU r18（2026-10-31）
 
-**FPGA 与板内 MCU 联合 Flash**，支持掉电保存与上电运行，已完成官方终端写入及校验。
+联合镜像已通过 FutureDynasty 官方命令行写入外部 SPI Flash，并完成厂商页校验。Flash ID 为 0xC8，镜像大小 14,775,152 字节，SHA-256 为 a8d67ccbd731a3e29d6dc075faf06dfb548774e9fedae09505a914512facb9c3。
 
-| 项目 | 实现结果 |
-| --- | --- |
-| Slice | **19945 / 21216** |
-| ERAM | **108 / 108** |
-| DSP | **31 / 40** |
-| 最终时序 | **Routed** |
-| Setup / Hold 最差裕量 | **+0.137 ns / +0.020 ns** |
-| Setup / Hold 总负裕量 | **0 / 0** |
+| 项目 | 结果 |
+| --- | ---: |
+| Slice | **20,091 / 21,216** |
+| ERAM | **103 / 108** |
+| DSP | **30 / 40** |
+| Routed SWNS / HWNS | **+0.132 ns / +0.020 ns** |
+| Routed STNS / HTNS | **0 / 0** |
 
-当前固件位于 [`firmware/`](firmware/)，资源与时序报告位于 [`verification/`](verification/)。
+17 段视频套件仍未全部通过：倾斜 3 误识为 2、手机 0 与部分远距离数字漏检、倾斜 ArUco 漏检。冷启动尚未验证；本次烧录期间没有回放视频。R6 bitstream 使用的形状源码候选已单独存档，未合入维护 RTL。详见 [部署与验收边界](docs/FPGA_MCU_FLASH_DEPLOYMENT_20261031.md) 和 [17 段视频回归记录](docs/VIDEO_SUITE_VALIDATION_20261029.md)。
+
+固件位于 [firmware/](firmware/)，版本和校验信息见 [verification/release_evidence.json](verification/release_evidence.json) 与 [PACKAGE_MANIFEST.json](PACKAGE_MANIFEST.json)。
 
 ## 工程目录
 
@@ -93,7 +94,7 @@ python tools/repository.py fpga
 python tools/repository.py flash-image
 ```
 
-烧录当前交付固件时，连接开发板电源和 AL-LINK-FT，启动本地官方调试服务 `127.0.0.1:5555` 后执行：
+通过 FutureDynasty 命令行烧录当前交付固件时，连接开发板和 AL-LINK-FT，启动本地 FutureDynasty 调试服务 `127.0.0.1:5555`，配置 fd_home 或 ANLOGIC_FD_HOME 后执行：
 
 ```powershell
 python tools/repository.py program
