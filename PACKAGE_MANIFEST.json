@@ -1,5 +1,5 @@
 {
-  "created": "2026-11-01T17:54:29.546366+08:00",
+  "created": "2026-11-01T18:46:23.809535+08:00",
   "sha256": {
     ".gitattributes": "329dbd1916538edf8f272e738d97d9009a170e0e02d2106f89ecb8cc7a7c5a8e",
     ".gitignore": "111d16d13ba29b9a9012fdc8d94d37ea8a8c63b63868387ace91a23a724e6c91",
@@ -894,7 +894,7 @@
     "docs/操作与部署.md": "b7a05399bf48f99dcddf2ed1b85aeb9d2d6825b186380b6f15f3f5ca6f9ee273",
     "docs/比赛提交说明.md": "a9fbec83f4a5932e1a72e71c2aba86ece251d1edc497eeb4cf06c4c7c78cecfb",
     "docs/系统设计说明.md": "4cc2638a68eb0588e11adc67de3b4b4561d0400a6133c88072f511c56890519a",
-    "docs/赛题二技术文档_实时图像处理与视觉交互系统.docx": "114860a0737ed150580e700abaf8d064edf7f9f881945b10ec5a6d4cbdd0f86b",
+    "docs/赛题二技术文档_实时图像处理与视觉交互系统.docx": "53a6806fc49264aa838328c9373e49e1406e4ace47c6d1044c8ea415e1825343",
     "examples/digit_cards.html": "98235d96cb5d167323ab3475396604d013a26a8d2d019addcbb2abdeb9a9966e",
     "firmware/boot/boot.bin": "1039b54f4eb85947691d85d2a5ef7000bd4d5f239fc8bd859d0f11985950ebdb",
     "firmware/boot/payload.bin": "287f33ea34178bf25ceac46631201e36c4ea6f574172eb68d990e0d641a58421",
