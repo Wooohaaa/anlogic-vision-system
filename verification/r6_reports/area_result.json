@@ -1,0 +1,25 @@
+{
+  "status": "PLACED_RESOURCE_OVER_V116_BASELINE_NOT_ROUTED",
+  "time": "2026-10-31T12:18:19.901035+08:00",
+  "candidate": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\tmp\\video_suite_20261029\\round2\\track_red_ellipse_minarea_r6_areaopt4_20261031.v",
+  "candidate_sha256": "37d9271bbdbd5bdd5089341d6cf90ba45b76e431958072ecf50c85cfd84682b1",
+  "resources": {
+    "slice": 20091,
+    "eram": 103,
+    "dsp": 30
+  },
+  "baseline": {
+    "slice": 19997,
+    "eram": 108,
+    "dsp": 31
+  },
+  "delta": {
+    "slice": 94,
+    "eram": -5,
+    "dsp": -1
+  },
+  "placed_db_sha256": "612d41fdf6ba93086b6346e2571e013d97892c7565bcf85d95e41fc1e0b6d763",
+  "hardware_access": false,
+  "video_replay": false,
+  "routed": false
+}

@@ -1,0 +1,30 @@
+{
+  "status": "ROUTED_BIT_VERIFIED_NOT_PROGRAMMED",
+  "created": "2026-10-31T12:33:28.322820+08:00",
+  "candidate_sha256": "37d9271bbdbd5bdd5089341d6cf90ba45b76e431958072ecf50c85cfd84682b1",
+  "placed_db_sha256": "612d41fdf6ba93086b6346e2571e013d97892c7565bcf85d95e41fc1e0b6d763",
+  "routed_db_sha256": "1edc69d236e75391906957193a1e19dd30a515d03a3820d0c66095229545458e",
+  "fpga_bit": "C:\\Users\\Chieh yu\\Desktop\\FPGA\\anlogic\\contest2_hdmi_video\\deliverables\\camera_hdmi_r6_areaopt4_r18_fpga.bit",
+  "fpga_bit_sha256": "07521eae26c34b68ff50bd15f76fc7fd362dbfee2a39dc9a3543b95187a92ed4",
+  "placed_resources": {
+    "slice": 20091,
+    "eram": 103,
+    "dsp": 30
+  },
+  "routed_resources": {
+    "slice": 20091,
+    "eram": 103,
+    "dsp": 30
+  },
+  "accepted_slice_ceiling": 20091,
+  "timing_confidence": "Routed",
+  "routed_timing_ns": {
+    "SWNS": 0.132,
+    "HWNS": 0.02,
+    "STNS": 0.0,
+    "HTNS": 0.0
+  },
+  "programmed": false,
+  "video_replay_run": false,
+  "hardware_access": false
+}

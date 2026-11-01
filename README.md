@@ -80,6 +80,8 @@ flowchart LR
 
 ## 构建与部署
 
+比赛提交版本为 R6 areaopt4 FPGA 与 MCU r18。执行 `python tools/prepare_submission.py --output C:/Anlogic/submission/PH1P35_R6_r18` 可生成已应用最终发布源码快照的独立工程；比赛 RAR 内已完成该步骤。源码对应关系、最终报告与提交内容见 [比赛提交说明](docs/比赛提交说明.md) 和 `verification/r6_source_profile.json`。
+
 环境：Windows、Python 3.11+、TD 工程师版与 FD 开发工具；RTL 仿真使用 Icarus Verilog。
 
 复制 `config.example.json` 为 `config.local.json`，填写 TD、FD 安装目录和 MCU 编译暂存目录。也可通过 `ANLOGIC_TD_HOME`、`ANLOGIC_FD_HOME` 设置工具路径。
